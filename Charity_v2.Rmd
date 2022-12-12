@@ -410,8 +410,48 @@ tmp[tmp != 0] %>%
 
 ```
 
-## HIV and others answer and test 
+## Social diseases
 ```{r}
+# Можно добавить какие-то переменные:
+
+# only in one fiela (is.na(redcap_repeat_instrument) == T):
+soc_ds.answer = c('hiv_1.factor', 'hb_1.factor', 'hc_1.factor', 'lues.factor', 'artv.factor') 
+# Could be in each observation:
+soc_ds.test = c('etest_hiv.factor', 'etest_hbsag.factor', 'etest_hcv.factor', 
+                'etest_lues.factor', 'etest_covid19.factor') 
+
+data_test_dinamic <-
+  data %>%
+  dplyr::select(record_id, soc_ds.test) %>%
+  na_if('не тестировался') %>% # replace "не тестировался" на NA
+  group_by(record_id) %>%
+    # remove all NAs, separeate each test result for each patients by "|"
+  dplyr::summarise_all(function(x) ifelse(all(is.na(x)), NA, paste(x[!is.na(x)], collapse = '|'))) %>%
+  dplyr::mutate_at(vars(starts_with('etest')), first_last_dinamics)
+    # Patients for checking (hiv):   
+    # 1174 ++
+    # 245 -- 
+    # 1333 -+
+  
+# Join with answer
+data %>%
+    dplyr::filter(is.na(redcap_repeat_instrument)) %>% # keep only informative fields
+    dplyr::select(record_id, soc_ds.answer) %>%
+    left_join(data_test_dinamic, by = 'record_id') %>%
+  #TODO
+  dplyr::filter(record_id %in% c(245, 1174, 1333)) #TEMP checking:
+```
+data_soc_ds <-
+  data %>%
+  dplyr::filter(is.na(redcap_repeat_instrument)) %>% # take only informative fields
+  dplyr::select(record_id, soc_ds.answer) %>%
+  left_join(data_test_dinamic, by = 'record_id') # join with test dinamic df
+  
+#TODO
+data_soc_ds
+
+strsplit('1|2|3', '|')[[1]]
+
 
 ```
 
