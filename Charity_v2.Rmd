@@ -240,74 +240,6 @@ data_done <-
 ```
 
 # HandMade analyses
-``{r fig.width = 7}
-# Process
-# Homeless relevel
-lvls = levels(data_done$Homeless.dinamic)
-data_done$Homeless.dinamic <- factor(data_done$Homeless.dinamic, 
-                                        levels = lvls[order(sapply(lvls, nchar))])
-
-patient_profile <-
-  data_done %>%
-  dplyr::select(record_id, gender.factor, age.group,
-                Homeless.dinamic, id_status.factor.bool,
-                oms_status.factor.bool, sn_status.factor.bool,
-                ObsNum) #%>%
-  # dplyr::mutate(record_id = factor(record_id, levels = record_id))
-
-
-patient_profile %>%
-  dplyr::select(age.group, gender.factor) %>%
-  na.omit %>%
-  ggplot(aes(age.group, gender.factor)) +
-  geom_mosaic(aes(x = product(age.group, gender.factor)), fill = wes_palettes$BottleRocket1[1]) +
-  geom_mosaic_text(aes(x = product(age.group, gender.factor), label = after_stat(.wt)), as.label=TRUE)
-
-
-patient_profile %>%
-  # as.data.table %>%
-  # melt.data.table(id.vars = 'record_id') %>%
-  # left_join(data_done %>% dplyr::select(record_id, age.group), by = 'record_id') %>%
-  #Plot
-  ggplot(aes(value, variable, group = age.group)) +
-    geom_bar(stat='identity', position = 'dodge')
-  
-patient_age_num <-
-  patient_profile %>%
-    dplyr::group_by(age.group) %>%
-    dplyr::summarise(., across(where(is.numeric), sum)) %>% 
-    dplyr::select(-record_id)
-
-patient_age_factor <-
-  patient_profile %>%
-  dplyr::select(-ObsNum) %>%
-  as.data.table %>%
-  melt.data.table(id.vars = 'record_id') %>%
-  left_join(data_done %>% dplyr::select(record_id, age.group), by = 'record_id') %>%
-  dplyr::select(-record_id) %>%
-  dplyr::group_by(age.group, variable, value) %>% 
-  count
-
-patient_age_factor %>%
-  left_join(patient_age_num, by = 'age.group') %>%
-  dplyr::filter(variable != 'age.group') %>%
-  na.omit %>%
-  #Plot
-  ggplot(aes(x = n, y = value, fill = age.group)) +
-  geom_bar(stat='identity', position = 'dodge') + 
-  facet_grid(rows = vars(variable))
-
-patient_profile %>%
-  as.data.table %>%
-  dplyr::select(-age.group, -ObsNum) %>%
-  melt.data.table(id.vars = 'record_id') %>%
-  left_join(data_done %>% dplyr::select(record_id, age.group), by = 'record_id') %>%
-  dplyr::select(-record_id)
-  #Plot
-  ggplot(aes(n, value, group = variable, fill = age.group)) +
-    geom_col(stat = 'identity', position = 'dodge') +
-  facet_grid(rows = vars(variable))
-``
 
 ## AgeGender
 ```{r fig.width=8}
@@ -357,14 +289,15 @@ ggHome
 ```
 
 ## AgeAlcoNarco
-```{r fig.width=10, message = F, warning = F}
+```{r fig.width=11, message = F, warning = F}
 
   data_done %>%
-  dplyr::select(Homeless.dinamic, alcogolic.factor, narco.factor, ne_narco.factor) %>%
+  dplyr::select(Homeless.dinamic, nicotin.factor, alcogolic.factor, narco.factor, ne_narco.factor) %>%
   # dplyr::filter(!is.na(age.group)) %>%
   dplyr::group_by(Homeless.dinamic) %>%
   dplyr::summarise(answer = names(table(alcogolic.factor)), # all factors - same value and order
                    Алко = table(alcogolic.factor),
+                   Никотин = table(nicotin.factor),
                    Нарко = table(narco.factor),
                    # narco.factor = names(table(narco.factor)),
                    НеНарко = table(ne_narco.factor)
@@ -387,16 +320,53 @@ ggHome
         axis.text = element_text(size = 12),
         legend.text = element_text(size = 12),
         strip.text.x = element_text(face = 'bold', size = 14))
-  
-  
-  
-  
+```
+# 
+```{r}
+tmp = data$citizen.factor %>% table
+tmp[tmp != 0] %>% 
+  as.data.frame %>% setNames(c('Answer', 'Freq')) %>%
+  ggplot(aes(Freq, fct_reorder(Answer, Freq))) +
+  geom_bar(stat = 'identity') +
+  theme_bw() +
+  labs(x = 'Patients', y = 'Answer') + 
+  theme(axis.title = element_text(face = 'bold', size = 14),
+        legend.title = element_text(face = 'bold', size = 14),
+        axis.text = element_text(size = 12),
+        legend.text = element_text(size = 12))
 
+```
+
+## HIV and others answer and test 
+```{r}
+
+```
+
+## ICD-10 
+```{r fig.width=6, fig.height=6}
+data %>%
+  dplyr::select(record_id, Homeless, starts_with('ds_')) %>%
+  dplyr::select(-ends_with('.factor')) %>%
+  as.data.table %>%
+  melt.data.table(id.vars = c('record_id', 'Homeless')) %>%
+  dplyr::mutate(value = as.factor(value)) %>%
+  dplyr::group_by(Homeless) %>%
+  dplyr::summarise(icd10 = factor(names(table(value)), 1:19),
+                   Count = table(value)
+                   ) %>%
+  dplyr::mutate(Homeless = factor(case_when(Homeless == 'NA' | is.na(Homeless) ~ 'Нет данных',
+                                     TRUE ~ Homeless),
+                                  levels = c('уличный', 'условно уличный',
+                                             'домашний', 'Нет данных'))) %>%
+  # Plot
+  ggplot(aes(icd10, Count)) +
+  facet_grid(rows = vars(Homeless)) +
+  geom_bar(stat = 'identity')
   
 ```
 
-
-# Plot quant vs quant
+# Shiny
+## Plot quant vs quant
 ```{r fig.width=10, fig.height=7}
 
 plot_quant_vs_quant <- function(df, var1, var2, cor.method = 'pearson', dropNA = F){
@@ -448,7 +418,7 @@ data_done %>%
   plot_quant_vs_quant(var1 , var2, cor.method = 'spearman', dropNA = T)
 ```
 
-# Plot factor vs factor
+## Plot factor vs factor
 ```{r fig.width=6, fig.height=6}
 # Function for ordinal encoding
 encode_ordinal <- function(x, order = sort(unique(x))) {
@@ -500,7 +470,7 @@ plot_factor_vs_factor(data_done, var1, var2,
                       original.names = T) #TODO convert all to NA or all to No anwser
 ```
 
-# Plot quant vs factor
+## Plot quant vs factor
 ```{r fig.width=10, fig.height=5}
 extract_all_comparisons <- function(.tbl) {
   .tbl %>%
@@ -583,7 +553,7 @@ plot_quant_vs_factor(data_done,
 ```
 
 
-# Shiny
+## Shiny
 ```{r}
 ui <-  fluidPage(
   
