@@ -27,6 +27,7 @@ if(!require('grid')) install.packages('grid') ; library(grid)
 if(!require('gridExtra')) install.packages('gridExtra') ; library(gridExtra)
 if(!require('ggplotify')) install.packages('ggplotify') ; library(ggplotify)
 if(!require('ggmosaic')) install.packages('ggmosaic') ; library(ggmosaic)
+if(!require('ggpol')) install.packages('ggpol') ; library(ggpol)
 
 if(!require('shiny')) install.packages('shiny') ; library(shiny)
 
@@ -114,7 +115,7 @@ data <-
   dplyr::mutate(Homeless = case_when(where_homless %in%  c(1, 14, 16, 6, 11) ~ 'уличный',
                                      where_homless %in% c(17, 2, 3, 4, 12, 5, 6, 15, 7) ~ 'условно уличный',
                                      where_homless %in% c(8, 9, 13) ~ 'домашний', 
-                                     where_homless == 10 ~ 'NA')) #TODO или наоборот ПРИРАВНЯТЬ NA к отказу от ответа
+                                     where_homless == 10 | is.na(where_homless) ~ as.character(NA))) #TODO или наоборот ПРИРАВНЯТЬ NA к отказу от ответа
 ```
 
 # Load 
@@ -249,7 +250,8 @@ data_done <-
 #                 oms_status.factor.bool, sn_status.factor.bool,
 #                 ObsNum
 
-ggGender <-
+
+ggGender1 <-
   data_done %>%
   dplyr::filter(!is.na(gender.factor) & !is.na(age.group)) %>%
   dplyr::group_by(age.group, gender.factor) %>%
@@ -263,18 +265,64 @@ ggGender <-
         legend.title = element_text(face = 'bold', size = 14),
         axis.text = element_text(size = 12),
         legend.text = element_text(size = 12))
-ggGender
+ggGender1
+
+ggGender2 <-
+  data_done %>%
+  dplyr::mutate(age.bins = cut(data_done$age.actual, 15),
+                count = 1) %>%
+  dplyr::select(age.bins, count, gender.factor) %>%
+  aggregate(count ~ gender.factor + age.bins, data = ., length) %>%
+  dplyr::mutate(count = ifelse(gender.factor == 'мужской', count * -1, count)) %>%
+  #Plot
+  ggplot(aes(age.bins, count, fill = gender.factor)) +
+  geom_bar(stat = 'identity') +
+  facet_share(~gender.factor, dir = 'h', scales = 'free', reverse_num = T) +
+  coord_flip() +
+  labs(y = 'Age', x = 'Patients', fill = 'Sex') +
+  scale_fill_manual(values = wes_palettes$Rushmore1[c(3,4)]) +
+  theme_bw() +
+  theme(axis.title = element_text(face = 'bold', size = 14),
+        legend.title = element_text(face = 'bold', size = 14),
+        axis.text = element_text(size = 12),
+        legend.text = element_text(size = 12),
+        strip.text.x = element_text(face = 'bold', size = 14)) 
+ggGender2
 ```
 
-## AgeHome
-```{r fig.width=7}
+## Home
+
+### Home overall
+```{r}
+data %>%
+  dplyr::filter(!is.na(redcap_repeat_instrument)) %>%
+  dplyr::select(record_id, redcap_repeat_instrument, Homeless) %>%
+  dplyr::summarise(Count = table(Homeless, exclude = NULL),
+                   Homeless = names(table(Homeless, exclude = NULL))) %>%
+  dplyr::mutate(Homeless = case_when(is.na(Homeless) ~ 'Нет данных',
+                                     T ~ Homeless)) %>%
+  # Plot 
+  ggplot(aes(Count, fct_reorder(Homeless, Count) , fill = Homeless)) +
+  geom_bar(stat = 'identity') +
+  scale_fill_manual(values = wes_palettes$Rushmore1[2:5]) +
+  theme_bw() +
+  theme(axis.title = element_text(face = 'bold', size = 14),
+        legend.title = element_text(face = 'bold', size = 14),
+        axis.text = element_text(size = 12),
+        legend.text = element_text(size = 12),
+        legend.position = 'none') +
+  labs(x  = 'Observation', y = 'Home status')
+
+```
+
+### Home by Patients
+```{r fig.width=8}
 ggHome <-
   data_done %>%
-  dplyr::filter(!is.na(Homeless.dinamic) & !is.na(age.group)) %>%
-  dplyr::group_by(age.group, Homeless.dinamic) %>%
-  count %>%
-  dplyr::group_by(age.group) %>% dplyr::mutate(Sum = sum(n)) %>% dplyr::arrange(desc(Sum)) %>%
-  ggplot(aes(n, fct_reorder(Homeless.dinamic, desc(Sum)), fill = age.group )) +
+  dplyr::filter(!is.na(Homeless.dinamic)) %>%
+  dplyr::group_by(Homeless.dinamic) %>%
+  count %>% 
+  ggplot(aes(n, fct_reorder(Homeless.dinamic, desc(n)))) +
   geom_bar(stat = 'identity') +
   # Appereance
   labs(x = 'Patients', fill = 'Age group', y = 'Home status') +
@@ -286,7 +334,32 @@ ggHome <-
         legend.text = element_text(size = 12))
 ggHome
 
-```
+
+# Parlament plot
+df_count <-
+  data_done %>%
+  dplyr::filter(!is.na(Homeless.dinamic)) %>%
+  dplyr::group_by(Homeless.dinamic) %>%
+  count %>%
+  dplyr::mutate(Homeless.dinamic = as.character(Homeless.dinamic)) %>%
+  dplyr::arrange(desc(n))
+
+# Plot
+ggplot(df_count) +
+  geom_parliament(aes(seats = n, fill = Homeless.dinamic)) +
+  scale_fill_manual(values = c('darkgrey', 
+                               "black", "blue", "lightblue", "yellow", 
+                               "red","purple", "green",
+                               'orange', 'tomato4'), 
+                    labels = df_count$Homeless.dinamic) +
+  coord_fixed() + 
+  labs(fill = 'Home status') +
+  theme(axis.title = element_text(face = 'bold', size = 14),
+        legend.title = element_text(face = 'bold', size = 14),
+        axis.text = element_text(size = 12),
+        legend.text = element_text(size = 12)) +
+  theme_void()
+``` 
 
 ## AgeAlcoNarco
 ```{r fig.width=11, message = F, warning = F}
@@ -354,8 +427,7 @@ data %>%
   dplyr::summarise(icd10 = factor(names(table(value)), 1:19),
                    Count = table(value)
                    ) %>%
-  dplyr::mutate(Homeless = factor(case_when(Homeless == 'NA' | is.na(Homeless) ~ 'Нет данных',
-                                     TRUE ~ Homeless),
+  dplyr::mutate(Homeless = factor(Homeless,
                                   levels = c('уличный', 'условно уличный',
                                              'домашний', 'Нет данных'))) %>%
   # Plot
