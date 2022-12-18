@@ -96,6 +96,19 @@ first_last_dinamics <- function(vec){
           )
 }
 
+most_frequent_dinamics <- function(vec){
+        vec %>%
+        str_split(., '\\|') %>%
+        sapply(function(x) {
+          x = x[x != 'NA']
+          if(length(x) == 0) {
+            return(NA)
+          }else{
+            median(x)
+          }
+          })
+}
+
 # Postprocessing
 data <-
   data %>%
@@ -113,7 +126,7 @@ data <-
   doc_vars_mutate('sn_status.factor.bool', 'sn_status.factor.reason') %>%
   # Encode homeless
   dplyr::mutate(Homeless = case_when(where_homless %in%  c(1, 14, 16, 6, 11) ~ 'уличный',
-                                     where_homless %in% c(17, 2, 3, 4, 12, 5, 6, 15, 7) ~ 'условно уличный',
+                                     where_homless %in% c(17, 2, 3, 4, 12, 5, 15, 7) ~ 'условно уличный',
                                      where_homless %in% c(8, 9, 13) ~ 'домашний', 
                                      where_homless == 10 | is.na(where_homless) ~ as.character(NA))) #TODO или наоборот ПРИРАВНЯТЬ NA к отказу от ответа
 ```
@@ -168,24 +181,35 @@ data <-
     )
   )
 data$age.group <- factor(data$age.group, levels = sort(unique(data$age.group)))
-
 ```
 
 
 # Processing of each type of vars
-```{r}
+```{r warning=F}
 # Dinamic vars (should be processed before dummy)
-data_dinamic <-
+dinamic <-
   data %>%
     dplyr::select(record_id, dinamic_vars) %>%
     dplyr::group_by(record_id) %>%
-    dplyr::summarise_all(function(x) paste(x, collapse = '|')) %>%
+    dplyr::summarise_all(function(x) paste(x, collapse = '|'))
+## First - last
+dinamic_firstlast <-
+    dinamic %>%
     dplyr::rename_all(function(x) ifelse(x != 'record_id', paste0(x, '.dinamic'), x)) %>%
     dplyr::mutate_at(vars(ends_with('.dinamic')), 
                      function(x) first_last_dinamics(x) %>% replace_na('Нет данных') %>% as.factor)
+## Most frequent
+dinamic_mostfreq <-
+    dinamic %>%
+    dplyr::rename_all(function(x) ifelse(x != 'record_id', paste0(x, '.mostfreq'), x)) %>%
+    dplyr::mutate_at(vars(ends_with('.mostfreq')), 
+                     function(x) most_frequent_dinamics(x) %>% replace_na('Нет данных') %>% as.factor)
+## Merge
+data_dinamic <- left_join(dinamic_firstlast, dinamic_mostfreq, by = 'record_id')
 
 # Renew names of dinamic vars with dinamic suffix
-dinamic_vars = paste0(dinamic_vars, '.dinamic')
+dinamic_vars = c(paste0(dinamic_vars, '.dinamic'),
+                 paste0(dinamic_vars, '.mostfreq'))
 
 # Proccess dummy vars (drop original dummy vars)
 data_dummy <-
@@ -245,12 +269,6 @@ data_done <-
 ## AgeGender
 ```{r fig.width=8}
 
-# record_id, gender.factor, age.group,
-#                 Homeless.dinamic, id_status.factor.bool,
-#                 oms_status.factor.bool, sn_status.factor.bool,
-#                 ObsNum
-
-
 ggGender1 <-
   data_done %>%
   dplyr::filter(!is.na(gender.factor) & !is.na(age.group)) %>%
@@ -286,7 +304,7 @@ ggGender2 <-
         legend.title = element_text(face = 'bold', size = 14),
         axis.text = element_text(size = 12),
         legend.text = element_text(size = 12),
-        strip.text.x = element_text(face = 'bold', size = 14)) 
+        strip.text.x = element_text(face = 'bold', size = 14))
 ggGender2
 ```
 
@@ -362,42 +380,95 @@ ggplot(df_count) +
 ``` 
 
 ## AgeAlcoNarco
-```{r fig.width=11, message = F, warning = F}
+```{r fig.width=14, message = F, warning = F}
 
-  data_done %>%
-  dplyr::select(Homeless.dinamic, nicotin.factor, alcogolic.factor, narco.factor, ne_narco.factor) %>%
+data_done %>%
+  dplyr::select(Homeless.mostfreq, nicotin.factor, alcogolic.factor, narco.factor, ne_narco.factor) %>%
   # dplyr::filter(!is.na(age.group)) %>%
-  dplyr::group_by(Homeless.dinamic) %>%
+  dplyr::group_by(Homeless.mostfreq) %>%
   dplyr::summarise(answer = names(table(alcogolic.factor)), # all factors - same value and order
-                   Алко = table(alcogolic.factor),
+                   Алкоголь = table(alcogolic.factor),
                    Никотин = table(nicotin.factor),
-                   Нарко = table(narco.factor),
-                   # narco.factor = names(table(narco.factor)),
-                   НеНарко = table(ne_narco.factor)
-                   # ne_narco.factor = names(table(ne_narco.factor)) 
+                   `ПАВ\nинъекционно`= table(narco.factor),
+                   `ПАВ\nнеинъекционно` = table(ne_narco.factor)
                    ) %>%
   dplyr::ungroup() %>%
   melt %>%
   dplyr::mutate(value = as.numeric(value))  %>%
-  dplyr::group_by(Homeless.dinamic) %>% dplyr::mutate(Sum = sum(value)) %>% dplyr::ungroup() %>%
-  
-  ggplot(aes(value, answer, fill = Homeless.dinamic)) +
+  dplyr::group_by(Homeless.mostfreq) %>% dplyr::mutate(Sum = sum(value)) %>% dplyr::ungroup() %>%
+  #Plot  
+  ggplot(aes(value, answer, fill = factor(Homeless.mostfreq, 
+                                          levels = c('уличный',
+                                                     'условно уличный',
+                                                     'домашний',
+                                                     'Нет данных')))) +
   geom_bar(stat = 'identity') +
   facet_grid(cols = vars(variable)) +
   # Appereance
-  labs(x = 'Patients', fill = 'Home status', y = 'Answer') +
-  # scale_fill_manual(values = c(wes_palettes$BottleRocket2, wes_palettes$BottleRocket1)) +
+  labs(x = 'Количество пациентов', y = 'Ответ', fill = 'Бездомность') +
+  scale_fill_manual(values = c(wes_palettes$Rushmore1[3:4],
+                               wes_palettes$BottleRocket2[c(1,2)])) +
   theme_bw() +
+  theme(axis.title = element_text(face = 'bold', size = 18),
+        legend.title = element_text(face = 'bold', size = 18),
+        axis.text = element_text(size = 16, face = 'bold'),
+        legend.text = element_text(size = 18),
+        strip.text.x = element_text(face = 'bold', size = 18))
+
+# Link with Home status(mostfreq)
+
+data_done %>%
+  dplyr::select(alcogolic.factor, Homeless.mostfreq) %>%
+  dplyr::mutate(alcogolic.factor = alcogolic.factor %>% as.character %>% replace_na('Нет данных') %>% as.factor) %>%
+  dplyr::filter(Homeless.mostfreq != 'Нет данных' &
+                alcogolic.factor != 'Нет данных') %>%
+  dplyr::mutate(alcogolic.factor = factor(alcogolic.factor, 
+                                          levels = c('отрицает/отказ от ответа',
+                                                     'избавился/был зависим',
+                                                     'есть в настоящее время')),
+                Homeless.mostfreq = factor(Homeless.mostfreq,
+                                           levels = c('уличный',
+                                                      'условно уличный',
+                                                      'домашний'))) %>%
+  # Plot
+      ggplot() +
+        geom_mosaic(aes(x = product(alcogolic.factor, 
+                                    Homeless.mostfreq)), 
+                    fill = wes_palettes$Rushmore1[3]) +
+        geom_mosaic_text(aes(x = product(alcogolic.factor, 
+                                    Homeless.mostfreq), label = after_stat(.wt)), as.label=TRUE) +
+      theme_bw() +
   theme(axis.title = element_text(face = 'bold', size = 14),
         legend.title = element_text(face = 'bold', size = 14),
-        axis.text = element_text(size = 12),
+        axis.text = element_text(size = 12, face = 'bold'),
         legend.text = element_text(size = 12),
-        strip.text.x = element_text(face = 'bold', size = 14))
+        strip.text.x = element_text(face = 'bold', size = 14)) +
+  labs(y = 'Алкогольная зависимость',
+       x = 'Статус бездомности')
+
+
+data_done %>%
+  dplyr::select(Homeless.mostfreq, alcogolic.factor, nicotin.factor, narco.factor, ne_narco.factor) %>%
+  na_if('Нет данных') %>% # not take into account 
+  # na_if('есть в настоящее время') %>% # for narco
+  dplyr::mutate_all(as.character) %T>%
+  {alco <<- chisq.test(.$Homeless.mostfreq, .$alcogolic.factor)} %T>%
+  {nicotin <<- chisq.test(.$Homeless.mostfreq, .$nicotin.factor)} %T>%
+  {narco <<- chisq.test(.$Homeless.mostfreq, .$narco.factor)} %T>%
+  {ne_narco <<- chisq.test(.$Homeless.mostfreq, .$ne_narco.factor)} %>%
+  invisible() # not to show the df
+
+paste0('alco: ',alco$p.value)
+paste0('nicotin: ', nicotin$p.value)
+paste0('narco: ', narco$p.value)
+paste0('ne_narco: ', ne_narco$p.value)
 ```
-# 
+
+# Citizenship
 ```{r}
-tmp = data$citizen.factor %>% table
-tmp[tmp != 0] %>% 
+data$citizen.factor %>% 
+  table %>%
+  .[. != 0] %>%
   as.data.frame %>% setNames(c('Answer', 'Freq')) %>%
   ggplot(aes(Freq, fct_reorder(Answer, Freq))) +
   geom_bar(stat = 'identity') +
@@ -408,6 +479,7 @@ tmp[tmp != 0] %>%
         axis.text = element_text(size = 12),
         legend.text = element_text(size = 12))
 
+data$citizen.factor %>% table %>% .[. != 0]
 ```
 
 ## Social diseases
@@ -441,40 +513,53 @@ data %>%
   #TODO
   dplyr::filter(record_id %in% c(245, 1174, 1333)) #TEMP checking:
 ```
-data_soc_ds <-
-  data %>%
-  dplyr::filter(is.na(redcap_repeat_instrument)) %>% # take only informative fields
-  dplyr::select(record_id, soc_ds.answer) %>%
-  left_join(data_test_dinamic, by = 'record_id') # join with test dinamic df
-  
-#TODO
-data_soc_ds
-
-strsplit('1|2|3', '|')[[1]]
-
-
-```
 
 ## ICD-10 
-```{r fig.width=6, fig.height=6}
+```{r fig.width=6, fig.height=6, warning = F, message =F}
 data %>%
   dplyr::select(record_id, Homeless, starts_with('ds_')) %>%
   dplyr::select(-ends_with('.factor')) %>%
   as.data.table %>%
   melt.data.table(id.vars = c('record_id', 'Homeless')) %>%
-  dplyr::mutate(value = as.factor(value)) %>%
+  dplyr::mutate(value = as.factor(case_when(value == 1 ~ 'A00-B99',
+                                            value == 2 ~ 'C00-D48',
+                                            value == 3 ~ 'D50-D89',
+                                            value == 4 ~ 'E00-E90',
+                                            value == 5 ~ 'F00-F99',
+                                            value == 6 ~ 'G00-G99',
+                                            value == 7 ~ 'H00-H59',
+                                            value == 8 ~ 'H60-H95',
+                                            value == 9 ~ 'I00-I99',
+                                            value == 10 ~ 'J00-J99',
+                                            value == 11 ~ 'K00-K93',
+                                            value == 12 ~ 'L00-L99',
+                                            value == 13 ~ 'M00-M99',
+                                            value == 14 ~ 'N00-N99',
+                                            value == 15 ~ 'O00-O99',
+                                            value == 16 ~ 'Q00-Q99',
+                                            value == 17 ~ 'S00-T98',
+                                            value == 18 ~ 'V01-Y98',
+                                            value == 19 ~ 'Z00-Z99') ) ) %>%
   dplyr::group_by(Homeless) %>%
-  dplyr::summarise(icd10 = factor(names(table(value)), 1:19),
+  dplyr::summarise(icd10 = names(table(value)),
                    Count = table(value)
                    ) %>%
   dplyr::mutate(Homeless = factor(Homeless,
                                   levels = c('уличный', 'условно уличный',
                                              'домашний', 'Нет данных'))) %>%
   # Plot
-  ggplot(aes(icd10, Count)) +
+  ggplot(aes(fct_reorder(icd10, Count,.desc = T), Count)) +
   facet_grid(rows = vars(Homeless)) +
-  geom_bar(stat = 'identity')
+  geom_bar(stat = 'identity', fill = wes_palettes$Rushmore1[3]) + 
+  theme_bw() +
+  labs(x = 'ICD-10', y = 'Observations') + 
+  theme(axis.title = element_text(face = 'bold', size = 14),
+        legend.title = element_text(face = 'bold', size = 14),
+        axis.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 45, vjust = 0.6),
+        legend.text = element_text(size = 12))
   
+
 ```
 
 # Shiny
@@ -744,94 +829,3 @@ server <- function(input, output) {
 # Run the app ----
 shinyApp(ui = ui, server = server)
 ```
-
-
-```{r}
-
-```
-
-data_done %>%
-      dplyr::select(!!vars) %>%
-      dplyr::rename()
-      dplyr::mutate_all(encode_ordinal) %>%
-      ggplot() +
-  geom_mosaic(aes(x = product(data_done[vars[1]], data_done[vars[2]])))
-
-
-mosaic2_examp <- ggplot(data = flights) +
-  geom_mosaic(aes(x=product(eliminate_reclining, do_you_recline, rude_to_recline), fill = do_you_recline, alpha = eliminate_reclining)) + 
-  scale_alpha_manual(values =c(.7,.9)) +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5)) + 
-  labs(y="Do you recline?", x="Eliminate reclining?:Is it rude to recline?", title = "Mosaic Plot (3 variables)")
-
-fly
-data("HairEyeColor")
-
-mosaic(HairEyeColor, shade = TRUE, legend = TRUE)
-
-
-
-unique(encode_ordinal(data_done$nicotin.factor))
-unique(data_done$nicotin.factor)
-
-sum(is.na(data_done$nicotin.factor))
-```
-
-# Plot dummy
-```{r}
-var1 = dummy_quant_vars[1]
-var2 = dummy_quant_vars[2]
-
-data_done %>%
-    dplyr::select(!!var1, !!var2) %>%
-    melt %>%
-  # Plot
-    ggplot(aes_string('variable', 'value', fill = 'variable')) +
-  geom_boxplot() +
-  stat_compare_means() +
-  # Appereance
-  scale_fill_manual(values = wes_palettes$Zissou1[c(1,5)]) +
-  theme(legend.position = 'none')
-
-```
-
-```{r}
-data$redcap_repeat_instrument
-data %>%
-  dplyr::filter(is.na(redcap_repeat_instrument)) %>%
-  dplyr::filter(is.na(id_status)) %>%
-  dplyr::select(record_id, gender, citizen, id_status, id_status.factor) #%>%
-  dplyr::filter(record_id == 1680)
-  data$cit
-```
-
-
-                                    # FOR DUMMY VARIABLES::
-# data_done %>%
-#     dplyr::select(!!var1, !!var2) %>%
-#     melt %>%
-#   # Plot
-#     ggplot(aes_string('variable', 'value', fill = 'variable')) +
-#   geom_boxplot() +
-#   stat_compare_means() + 
-#   # Appereance
-#   scale_fill_manual(values = wes_palettes$Zissou1[c(1,5)]) +
-#   theme(legend.position = 'none')
-```
-
-```{r}
-data_done %>% 
-  dplyr::select(quant_vars) %>% str
-```
-
-- пол (`gender`) - 
-наличие документов (`id_status`) - 
-места ночлега (`where_homless`) - 
-диагноз по МКБ-10 #1 (`ds_icd_1`) - 
-диагноз по МКБ-10 #2 (`ds_icd_2`) - 
-диагноз по МКБ-10 #3 (`ds_icd_3`) - 
-социально-значимые заболевания: - ВИЧ-инфекция (`hiv_1`) - 
-Гепатит B (`hb_1`) - 
-Гепатит C (`hc_1`) - 
-Сифилис (`lues`) - 
-Анамнез со слов по ТБ (`tbi`) 
