@@ -4,7 +4,7 @@ graphics.off()
 #Load Hmisc library
 library(Hmisc)
 #Read Data
-path = '/home/gene/Orthonectida/Projects/Biostatistic/Biostat_2022/data/CharityHospital_DATA_2022-11-02_1444_raw_data.csv'
+path = 'CharityHospital_DATA_2022-11-02_1444_raw_data.csv'
 data=read.csv(path, na.strings = '')
 #Setting Labels
 
