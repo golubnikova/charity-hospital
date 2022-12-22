@@ -599,6 +599,147 @@ data %>%
   dplyr::filter(record_id %in% c(245, 1174, 1333)) #TEMP checking:
 ```
 
+## Social diseases plots
+```{r}
+data_soc_ds <-
+  data %>%
+  dplyr::filter(is.na(redcap_repeat_instrument)) %>% # take only informative fields
+  dplyr::select(record_id, soc_ds.answer) %>%
+  left_join(data_test_dinamic, by = 'record_id')
+
+# Про ВИЧ
+
+# Протестировано 170 человек, из них 152 (-), 
+# 15 (+) (из них 2 не знали о своем статусе - осв 87% (в россии вроде как перевалила за 90 в среднем)), 
+# 2 неопределенных, 1 - сероконверсия (тоже не знал(?))
+
+
+
+just_hiv <- data_soc_ds %>%
+  filter(!is.na(etest_hiv.factor) & !is.na(hiv_1.factor)) %>%
+  select(etest_hiv.factor, hiv_1.factor, artv.factor)
+
+hiv_plot <-
+  just_hiv %>%
+  ggplot(aes(x = hiv_1.factor, fill = etest_hiv.factor )) +
+  geom_bar() +
+  labs(x = 'Данные опроса', y = 'Количество', fill = 'Результат экспресс-тестирования') +
+  scale_fill_manual(values = wes_palettes$Rushmore1[c(2, 3,4,5)]) +
+  theme_bw() +
+  theme(axis.title = element_text(face = 'bold', size = 14),
+        legend.title = element_text(face = 'bold', size = 14),
+        axis.text = element_text(size = 12),
+        legend.text = element_text(size = 12))
+hiv_plot
+
+# Ниже код для сохранения рисунков
+# png(filename="ВИЧ.png", width = 750, height = 500)
+# plot(hiv_plot)
+# dev.off()
+
+# table(just_tests$etest_hiv.factor)
+
+# Про гепатит В
+
+# протестировано 143 человека, из них 4 (+), 1 неопределенный, 138 (-)
+# 2 людей не знали о своем статусе
+
+just_hb <- data_soc_ds %>%
+  filter(!is.na(etest_hbsag.factor) & !is.na(hb_1.factor)) %>%
+  select(etest_hbsag.factor, hb_1.factor)
+
+# table(just_hb$hb_1.factor)
+# table(just_hb$etest_hbsag.factor)
+
+hb_plot <-
+  just_hb %>%
+  ggplot(aes(x = hb_1.factor, fill = etest_hbsag.factor )) +
+  geom_bar(width = 0.5) +
+  labs(x = 'Данные опроса', y = 'Количество', fill = 'Результат экспресс-теста') +
+  scale_fill_manual(values = wes_palettes$Rushmore1[c(3,4,5)]) +
+  theme_bw() +
+  theme(axis.title = element_text(face = 'bold', size = 18),
+        legend.title = element_text(face = 'bold', size = 16),
+        axis.text = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.position = "none")
+hb_plot
+
+# library(ggbubr)
+# library(grid)
+# library(cowplot)
+
+legend <- get_legend(hb_plot)
+grid.newpage()                              
+
+# Draw Only legend 
+grid.draw(legend)
+
+# png(filename="ВГВ.png", width = 750, height = 750)
+# plot(hb_plot)
+# dev.off()
+
+# Про гепатит С
+
+# Протестировано 133 человека, из них 17 (+), 1 неопределенный, 115 (-)
+# 5 человек не знали о своем статусе
+
+just_hc <- data_soc_ds %>%
+  filter(!is.na(etest_hcv.factor) & !is.na(hc_1.factor)) %>%
+  select(etest_hcv.factor, hc_1.factor)
+
+hc_plot <-
+  just_hc %>%
+  ggplot(aes(x = hc_1.factor, fill = etest_hcv.factor )) +
+  geom_bar(width = 0.5) +
+  labs(x = 'Данные опроса', y = 'Количество', fill = 'Результат экспресс-теста') +
+  scale_fill_manual(values = wes_palettes$Rushmore1[c(3,4,5)]) +
+  theme_bw() +
+  theme(axis.title = element_text(face = 'bold', size = 18),
+        legend.title = element_text(face = 'bold', size = 16),
+        axis.text = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.position = "none") # +
+  # geom_text(stat = "count", 
+           # aes(label = after_stat(count)), vjust = 0.5)
+hc_plot
+
+# png(filename="ВГC.png", width = 750, height = 750)
+# plot(hc_plot)
+# dev.off()
+
+# Про сифилис
+
+# один случай сероконверсии, проведено 148 тестов
+
+just_lues <- data_soc_ds %>%
+  filter(!is.na(etest_lues.factor) & !is.na(lues.factor)) %>%
+  select(etest_lues.factor, lues.factor)
+
+table(just_lues$lues.factor)
+table(just_lues$etest_lues.factor)
+
+lues_plot <-
+  just_lues %>%
+  ggplot(aes(x = lues.factor, fill = etest_lues.factor )) +
+  geom_bar(width = 0.5) +
+  labs(x = 'Данные опроса', y = 'Количество', fill = 'Результат экспресс-теста') +
+  scale_fill_manual(values = wes_palettes$Rushmore1[c(3,4,5)]) +
+  theme_bw() +
+  theme(axis.title = element_text(face = 'bold', size = 18),
+        legend.title = element_text(face = 'bold', size = 16),
+        axis.text = element_text(size = 16),
+        legend.text = element_text(size = 14),
+        legend.position = "none") # +
+#  geom_text(stat = "count", 
+ #           aes(label = after_stat(count)), vjust = -1)
+lues_plot
+
+# png(filename="сиф.png", width = 750, height = 750)
+# plot(lues_plot)
+# dev.off()
+```
+
 ## ICD-10: barplot
 ```{r dev = "png"}
 library('wesanderson')
