@@ -35,6 +35,7 @@ if(!require('plotly')) install.packages('plotly') ; library(plotly)
 if(!require('ggplot2')) install.packages('ggplot2') ; library(ggplot2)
 
 #if(!require('shiny')) install.packages('shiny') ; library(shiny)
+
 ```
 
 # Functions
@@ -174,13 +175,55 @@ data <-
   dplyr::mutate(Homeless = case_when(where_homless %in%  c(1, 14, 16, 6, 11) ~ 'уличный',
                                      where_homless %in% c(17, 2, 3, 4, 12, 5, 15, 7) ~ 'условно уличный',
                                      where_homless %in% c(8, 9, 13) ~ 'домашний', 
-                                     where_homless == 10 | is.na(where_homless) ~ as.character(NA))) #TODO или наоборот ПРИРАВНЯТЬ NA к отказу от ответа
+                                     where_homless == 10 | is.na(where_homless) ~ as.character(NA))) %>%
+  dplyr::mutate(smp = case_when(trimws(place) %in% c('14 городская больница', '36 ГБ', '40', '40 ГБ, Сестрорецк', 'александровская больница', 'Боткина, уже там, старая', 'ГБ 14', 'ГБ 40', 'ГБ №3', 'ГБ №40', 'Георгия', 'ГКБ №40', 'Джанелидзе', 'Мариинская больница 5  отд. 11 палата', 'Покровская больница', 'Попытка госпитализации в ГНБ. Отказ от госпитализации по причине отсутствия прожарки и справки БОМЖ. В приёмном покое ГНБ у пациента возникли судороги. Вызвана скорая помощь, доставлен Александровскую больницу', 'СМП', 'Смп 78 Леванеев бригада,Джа', 'Травма по 55 гп 112 СМП') ~ T,
+                                is.na(place) ~ NA,
+                                T ~ F))
 ```
 
-# Load 
-Зачем?
-Load data from 
-~/Orthonectida/Projects/Biostatistic/Biostat_2022/scripts/CharityHospital_R_2022-11-02_1448.r
+# EDA
+```{r}
+# Look on lethal cases
+data$ds[grepl('смерть|летальный', data$ds, ignore.case = T)] # only 4 cases
+
+# chatGPT decoding of diagnosis in ICD-10 code
+if(F){ # skip by default
+  # DS
+  ds <- data$ds %>% unique %>% na.omit %>% gsub('\n', ' ', .) %>% head(100)
+  library(gptchatteR)
+  # Auth
+  key = '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'
+  chatter.auth(key)
+  # Create chat
+  chatter.create()
+  # Chatting!
+  context = 'Раздели составные врачебные диагнозы написанные в свободном стиле на отдельные диагнозы и переведи их в классификацию по МКБ-10. Ответ запиши в виде кодов МКБ-10 перечисленных через запятую. При невозожности определения диагноза к одной из классификаций МКБ-10, заполни значением NA'
+  chatter.feed(context)
+  
+  chunks = seq(from = 20, to = length(ds), by = 20)
+  answers.list <-
+    lapply(1:length(chunks), function(i){
+    if(i==1){
+      start = 1
+      end = chunks[i]
+    } else{
+      start = chunks[i-1] + 1
+      end = chunks[i]
+    }
+      answer = chatter.chat(ds[start:end],return_response = T, feed = F)
+      Sys.sleep(3)
+      return(answer$choices)
+  })
+  
+  
+  ds.df <- data.frame(Diagnos = ds)
+  answers.list %>%
+    do.call(rbind, .) %>%
+    cbind(ds.df, .) %>%
+    dplyr::mutate(text = gsub('\n', '', trimws(text))) %>%
+    write.xlsx('Decoding_diagnosis.xlsx')
+  }
+```
 
 # Classified vars
 ```{r}
@@ -203,7 +246,7 @@ dummy_vars_raw = c('Observation', 'Homeless',
 dummy_vars_already <- c('complaint_lite')
 
 # Dinamic variables
-dinamic_vars = c('Observation', 'Homeless')
+dinamic_vars = c('Observation', 'Homeless', 'alc_status.factor', 'smp')
 ```
 
 # Transform data
