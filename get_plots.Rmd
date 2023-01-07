@@ -153,6 +153,42 @@ get_one_var_hist <- function(data, var, out_dir, xtitle,
   plt
 }
 
+# Classify ICD code to specific intervals
+codeICD_to_IntervalICD <- function(ICD){ # --> c(ICD, description)
+  intervals = c('A00-B99', 'C00-D48', 'D50-D89', 'E00-E90', 'F00-F99', 'G00-G99', 'H00-H59', 'H60-H95', 'I00-I99', 'J00-J99', 'K00-K93', 'L00-L99', 'M00-M99', 'N00-N99', 'O00-O99', 'Q00-Q99', 'S00-T98', 'V01-Y98', 'Z00-Z99')
+  decoding = c('Некоторые инфекционные и паразитарные болезни', 
+               'Новообразования',
+               'Болезни крови, кроветворных органов и отдельные нарушения, вовлекающие иммунный механизм',
+               'Болезни эндокринной системы, расстройства питания и нарушения обмена веществ',
+               'Психические расстройства и расстройства поведения',
+               'Болезни нервной системы',
+               'Болезни глаза и его придаточного аппарата',
+               'Болезни уха и сосцевидного отростка',
+               'Болезни системы кровообращения',
+               'Болезни органов дыхания',
+               'Болезни органов пищеварения',
+               'Болезни кожи и подкожной клетчатки',
+               'Болезни костно-мышечной системы и соединительной ткани',
+               'Болезни мочеполовой системы',
+               'Беременность, роды и послеродовой период',
+               'Врожденные аномалии [пороки развития], деформации и хромосомные нарушения',
+               'Травмы, отравления и некоторые другие последствия воздействия внешних причин',
+               'Внешние причины заболеваемости и смертности',
+               'Общий осмотр и обследование лиц, не имеющих жалоб или установленного диагноза')
+  # return NA on NA
+  if(ICD == 'NA' | is.na(ICD) | ICD == '') {return ('NA')}
+  # Process code
+  ICD %<>% gsub('\\.[0-9]+', '', .)
+  letter = substr(ICD, 1, 1)
+  num = as.numeric(substr(ICD, 2, 3))
+  
+  answer = intervals[grepl(letter, intervals)]
+  # special cases D and H
+  if(letter == 'D'){ answer <- ifelse(num < 50, 'C00-D48', 'D50-D89')}
+  if(letter == 'H'){ answer <- ifelse(num < 60, 'H00-H59', 'H60-H95')}
+  if(length(answer) == 0){answer <- NA}
+  return(answer)
+}
 ```
 
 # Postprocessing
@@ -176,9 +212,78 @@ data <-
                                      where_homless %in% c(17, 2, 3, 4, 12, 5, 15, 7) ~ 'условно уличный',
                                      where_homless %in% c(8, 9, 13) ~ 'домашний', 
                                      where_homless == 10 | is.na(where_homless) ~ as.character(NA))) %>%
+  # create SMP variable
   dplyr::mutate(smp = case_when(trimws(place) %in% c('14 городская больница', '36 ГБ', '40', '40 ГБ, Сестрорецк', 'александровская больница', 'Боткина, уже там, старая', 'ГБ 14', 'ГБ 40', 'ГБ №3', 'ГБ №40', 'Георгия', 'ГКБ №40', 'Джанелидзе', 'Мариинская больница 5  отд. 11 палата', 'Покровская больница', 'Попытка госпитализации в ГНБ. Отказ от госпитализации по причине отсутствия прожарки и справки БОМЖ. В приёмном покое ГНБ у пациента возникли судороги. Вызвана скорая помощь, доставлен Александровскую больницу', 'СМП', 'Смп 78 Леванеев бригада,Джа', 'Травма по 55 гп 112 СМП', 'НИИ кардиологии им Алмазова', 'отказ от госпитализации') ~ T,
                                 is.na(place) ~ NA,
-                                T ~ F))
+                                T ~ F)) %>%
+  dplyr::mutate(where.category = 
+                  case_when(where %in% c(1) ~ 'ночной приют',
+                            where %in% c(2,16,20,19) ~ 'приют',
+                            where %in% c(9,8,7,6,5,4,3,21,22,14,23) ~ 'стоянка',
+                            where %in% c(11,10,12) ~ 'пункт обогрева',
+                            where %in% c(15) ~ 'медицинский центр',
+                            where == 13 ~ 'удаленная консультация'
+                            ))
+# process diagnose variable
+  
+
+data$ds.processed <-
+  data$ds %>%
+  trimws %>% # strip
+  tolower %>%  # lower register
+  # remove dates and ?
+  gsub('(от)?[ ]?[0-9]+\\.[0-9]+[\\.0-9]*[г\\.\\)]?|\\?', '', .) %>%
+  # replace dots, commas and newline with space
+  gsub('\\.|,|\n', ' ', .) %>%
+  # remove multiple spaces
+  gsub('[ ]+', ' ', .) %>%
+  # Add space in the begining 
+  gsub('^', ' ', .) %>%
+  # replace most frequent abbreviations
+  gsub(' гб ', ' гипертоническая болезнь ', .) %>%
+  gsub(' cco | ссо4 ', ' сердечно-сосудистых осложнений ', .) %>%
+  gsub(' аг | эаг ', ' артериальная гипертензия ', .) %>%
+  gsub(' ибс ', ' ишемическая болезнь сердца ', .) %>%
+  gsub(' онмк | ии ', ' инсульт ', .) %>%
+  gsub(' отит ', ' Воспаление уха ', .) %>%
+  gsub(' ддзп ', ' остеохондроз ', .) %>%
+  gsub(' арвт ', ' антиретровирусная терапия ', .) %>%
+  gsub(' гэрб ', ' изжога ', .) %>%
+  gsub(' пресбиопия ', ' дальнозоркость ', .) %>%
+  gsub(' цвб ', ' цереброваскулярная болезнь ', .) %>%
+  gsub(' нк ', ' нижняя конечность ', .) %>%
+  gsub(' врвнк ', ' варикозно расширенные вены нижней конечности ', .) %>%
+  gsub(' мос ', ' металлоостеосинтез ', .) %>%
+  gsub(' сд ', ' сахарный диабет ', .) %>%
+  gsub(' поп ', ' поясничный отдел позвоночника ', .) %>%
+  gsub(' хобл ', ' хроническая обструктивная болезнь легких ', .) %>%
+  gsub(' туб ', ' туберкулез ', .) %>%
+  gsub(' тбс ', ' тазобедренный сустав ', .) %>%
+  gsub(' хсн ', ' хроническая сердечная недостаточность ', .) %>%
+  gsub(' гсс ', ' голеностопный сустав ', .) %>%
+  gsub(' кса ', ' капсульно-связочный аппарат ', .) %>%
+  gsub(' нки ', ' коронавирусная инфекция ', .) %>%
+  gsub(' соп ', ' сопутсвующее ', .) %>%
+  gsub(' дгжп ', ' доброкачественная гиперплазия предстательной железы ', .) %>%
+  gsub(' дэ ', ' дисциркуляторная энцефалопатия ', .) %>%
+  gsub(' жда ', ' железодефицитная анемия ', .) %>%
+  gsub(' фрж | фржкт ', ' функциональное расстройство желудочно-кишечного тракта ', .) %>%
+  gsub(' ябж ', ' язвенная болезнь желудка ', .) %>%
+  gsub(' ба ', ' бронхиальная астма ', .) %>%
+  gsub(' зчмт ', ' закрытая черепно-мозговая травма ', .) %>%
+  gsub(' жкб ', ' желчнокаменная болезнь ', .) %>%
+  gsub(' 12пк ', ' двенадцатиперстной кишки ', .) %>%
+  gsub(' гепс ', ' гепатит C ', .) %>%
+  trimws %>%
+  as.character
+
+# Load diagnosis decoded with chatGPT
+data <-
+  readxl::read_xlsx('Decoded_ds.xlsx') %>%
+  dplyr::select(ds.processed, text.intervals, text) %>%
+  dplyr::rename(ds.ICD = text,
+                ds.ICD.intervals = text.intervals) %>%
+  left_join(data, ., by = 'ds.processed')
 ```
 
 # EDA
@@ -189,18 +294,18 @@ data$ds[grepl('смерть|летальный', data$ds, ignore.case = T)] # on
 # chatGPT decoding of diagnosis in ICD-10 code
 if(F){ # skip by default
   # DS
-  ds <- data$ds %>% unique %>% na.omit %>% gsub('\n', ' ', .) %>% head(100)
+  ds <- data$ds.processed %>% na.omit %>% unique
   library(gptchatteR)
   # Auth
-  key = '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'
-  chatter.auth(key)
+  key = '...'
+  chatter.auth(key) # need personal API key
   # Create chat
   chatter.create()
   # Chatting!
-  context = 'Раздели составные врачебные диагнозы написанные в свободном стиле на отдельные диагнозы и переведи их в классификацию по МКБ-10. Ответ запиши в виде кодов МКБ-10 перечисленных через запятую. При невозожности определения диагноза к одной из классификаций МКБ-10, заполни значением NA'
+  context = 'Раздели составные врачебные диагнозы написанные в свободном стиле на отдельные диагнозы и переведи их в классификацию по МКБ-10. Ответ запиши в виде кодов МКБ-10 перечисленных через запятую. При невозожности определения диагноза к одной из классификаций МКБ-10, заполни как пропущенное значение: NA'
   chatter.feed(context)
   
-  chunks = seq(from = 20, to = length(ds), by = 20)
+  chunks = c(seq(from = 20, to = length(ds), by = 20), length(ds))
   answers.list <-
     lapply(1:length(chunks), function(i){
     if(i==1){
@@ -211,18 +316,51 @@ if(F){ # skip by default
       end = chunks[i]
     }
       answer = chatter.chat(ds[start:end],return_response = T, feed = F)
-      Sys.sleep(3)
+      Sys.sleep(5)
       return(answer$choices)
   })
   
-  
-  ds.df <- data.frame(Diagnos = ds)
-  answers.list %>%
+  library(xlsx)  
+  ds.df <- data.frame(ds.processed = ds)
+  answers.df <-
+    answers.list %>%
     do.call(rbind, .) %>%
     cbind(ds.df, .) %>%
-    dplyr::mutate(text = gsub('\n', '', trimws(text))) %>%
-    write.xlsx('Decoding_diagnosis.xlsx')
-  }
+    dplyr::mutate(text = gsub('\n', '', trimws(text))) %T>%
+    # Save raw answers
+    write.xlsx('Decoding_diagnosis.xlsx') %>%
+    # Process answers
+    # Let's mark all answers with words (not correct)
+    dplyr::mutate(incorrect = grepl('[[:lower:]]+', text))
+
+answers.df <- 
+  readxl::read_xlsx('Decoding_diagnosis.xlsx') %>%
+  dplyr::mutate(incorrect = grepl('[[:lower:]]+', text))
+# Convert in interval (only for correct answers)
+answers.df %>%
+    dplyr::filter(incorrect) %>%
+    write.xlsx('Decoding_diagnosis_incorrect.xlsx')
+
+decode.correct <-
+  answers.df %>%
+    dplyr::filter(!incorrect) %>%
+    dplyr::mutate(text.intervals = sapply(text, function(x){
+                        str_split(x, ',') %>% unlist %>% trimws %>% 
+                        sapply(codeICD_to_IntervalICD) %>%
+                        unique %>%
+                        paste(collapse = ',')
+                      })
+                  ) %>%
+    dplyr::select(ds.processed, text.intervals, text, incorrect) %T>%
+    write.table('Decoding_diagnosis_full.tsv', sep = '\t', row.names = F)
+
+decoded.incorrect <- # corrected manually
+  readxl::read_xlsx('Decoding_diagnosis_incorrect_CORRECTED.xlsx') %>%
+    dplyr::select(ds.processed, text.intervals, text, incorrect)
+
+rbind(decode.correct, decoded.incorrect) %>%
+  write.xlsx('Decoded_ds.xlsx')
+}
 ```
 
 # Classified vars
@@ -236,8 +374,7 @@ base_vars.factor = c('gender.factor', 'age.group',
 
 base_vars.bool = c('id_status.factor.bool', 'oms_status.factor.bool', 'sn_status.factor.bool')
 
-quant_vars = c('ObsNum', 'age.actual')
-
+quant_vars = c('ObsNum', 'age.actual', 'ds.ICD.intervals.N')
 
 # Dummy variables:
 dummy_vars_raw = c('Observation', 'Homeless',
@@ -247,6 +384,8 @@ dummy_vars_already <- c('complaint_lite')
 
 # Dinamic variables
 dinamic_vars = c('Observation', 'Homeless', 'alc_status.factor', 'smp')
+
+sequence_vars = c('ds.ICD.intervals')
 ```
 
 # Transform data
@@ -272,7 +411,6 @@ data <-
   )
 data$age.group <- factor(data$age.group, levels = sort(unique(data$age.group)))
 ```
-
 
 # Processing of each type of vars
 ```{r warning=F}
@@ -301,6 +439,32 @@ data_dinamic <- left_join(dinamic_firstlast, dinamic_mostfreq, by = 'record_id')
 dinamic_vars = c(paste0(dinamic_vars, '.dinamic'),
                  paste0(dinamic_vars, '.mostfreq'))
 
+# Sequence vars
+data_seq <-
+  data %>%
+  dplyr::select(record_id, sequence_vars) %>%
+  dplyr::group_by(record_id) %>%
+  dplyr::summarise(ds.ICD.intervals.seq = paste(ds.ICD.intervals, collapse = ',')) %>%
+  # remove NA
+  dplyr::mutate(ds.ICD.intervals.seq = 
+                  gsub('NA,|,NA', '', ds.ICD.intervals.seq)) %>%
+  # remove duplicates
+  dplyr::mutate(ds.ICD.intervals.seq = 
+                  sapply(ds.ICD.intervals.seq,
+                         function(x){
+                           x %>% 
+                             str_split(',') %>%
+                             unlist %>%
+                             unique %>%
+                             paste(collapse = ',')
+                         }) %>% unname 
+  ) %>%
+  na_if('NA') %>%
+  dplyr::mutate(ds.ICD.intervals.N = ds.ICD.intervals.seq %>%
+                  str_split(',') %>% sapply(length)
+                )
+
+sequence_vars = paste0(sequence_vars, '.seq')
 # Proccess dummy vars (drop original dummy vars)
 data_dummy <-
   data %>%
@@ -337,7 +501,7 @@ quant_vars = c(quant_vars, data_rowwise %>% dplyr::select(ends_with('.number')) 
 
 # Basic stats
 ```{r}
-selected_vars <- c(base_vars.bool, base_vars.factor, quant_vars, dummy_quant_vars, dinamic_vars)
+selected_vars <- c(base_vars.bool, base_vars.factor, quant_vars, dummy_quant_vars, dinamic_vars, sequence_vars)
 ##
 data_done <-
   data %>%
@@ -351,6 +515,8 @@ data_done <-
   right_join(data_rowwise, by = 'record_id') %>% 
   # Join with dinamic vars
   right_join(data_dinamic, by = 'record_id') %>%
+  # Join with sequence vars
+  right_join(data_seq, by = 'record_id') %>%
   dplyr::select(record_id, all_of(selected_vars))
 ```
 
@@ -405,6 +571,35 @@ get_one_var_hist(data=data, var='gender.factor', out_dir='plots',
 
 ```
 
+## Citizenship
+```{r}
+data$citizen.factor %>% 
+  table %>%
+  .[. != 0] %>%
+  as.data.frame %>% setNames(c('Answer', 'Freq')) %>%
+  ggplot(aes(Freq, fct_reorder(Answer, Freq))) +
+  geom_bar(stat = 'identity') +
+  theme_bw() +
+  labs(x = 'Patients', y = 'Answer') + 
+  theme(axis.title = element_text(face = 'bold', size = 14),
+        legend.title = element_text(face = 'bold', size = 14),
+        axis.text = element_text(size = 12),
+        legend.text = element_text(size = 12))
+
+data$citizen.factor %>% table %>% .[. != 0]
+
+
+## citizenship (by Masha)
+
+get_one_var_hist(data=data %>%
+                   filter(`citizen.factor` != 0) %>%
+                   mutate(`citizen.factor` = as.character(`citizen.factor`)),
+                 var='citizen.factor', out_dir='plots',
+                 xtitle='Гражданство', pall_values=c(wes_palettes$Rushmore1, wes_palettes$GrandBudapest1,
+                                                     wes_palettes$GrandBudapest2),
+                 height = 6, width = 8, ratio=0.8)
+```
+
 ## Home
 
 ### Home overall
@@ -430,25 +625,38 @@ data %>%
 
 ```
 
-# Documents: passport, OMS, SNILS
-```{r}
+## Diagnosis
 
-a <- get_one_var_hist(data=data, var='sn_status.factor', out_dir='plots',
-                      xtitle='Наличие СНИЛСа', pall_values=wes_palettes$Rushmore1,
-                      height = 4, width = 9)
-b <- get_one_var_hist(data=data, var='id_status.factor', out_dir='plots',
-                      xtitle='Наличие паспорта', pall_values=wes_palettes$Rushmore1,
-                      height = 4, width = 9)
-c <- get_one_var_hist(data=data, var='oms_status.factor', out_dir='plots',
-                      xtitle='Наличие ОМС', pall_values=wes_palettes$Rushmore1,
-                      height = 4, width = 9)
+### vs Home
+```{r message=F}
+# Create long dataframe
+df.ds.home <-
+  data.frame(record_id = rep(data_done$record_id, data_done$ds.ICD.intervals.N),
+             ICD = data_done$ds.ICD.intervals.seq %>% 
+               str_split(',') %>% 
+               unlist,
+           Homeless = rep(data_done$Homeless.mostfreq, data_done$ds.ICD.intervals.N)
+           )
 
-abc_stacked <- ggpubr::ggarrange(a, b, c, nrow = 3, common.legend = T)
-ggsave(abc_stacked, filename = 'plots/sn_id_oms_stacked.png', height = 10, width = 11)
-
+df.ds.home %>%
+  dplyr::group_by(Homeless) %>%
+  dplyr::summarise(ICD.freq = table(ICD),
+                   ICD.name = names(table(ICD))) %>%
+  ggplot(aes(ICD.name, ICD.freq)) +
+  facet_grid(rows = vars(Homeless)) +
+  geom_bar(stat = 'identity') +
+  theme(axis.text.x = element_text(angle = 75, vjust = 0.5))
 ```
 
-### Home by Patients
+### vs Addictions
+```{r message=F}
+#TODO
+data_done %>%
+    dplyr::select(ds.ICD.intervals.N, ds.ICD.intervals.seq, alcogolic.factor)
+```
+
+
+## Homeless
 ```{r fig.width=8}
 ggHome <-
   data_done %>%
@@ -495,7 +703,7 @@ ggplot(df_count) +
 ``` 
 
 
-## AgeAlcoNarco
+## Addictions
 ```{r fig.width=14, message = F, warning = F}
 
 data_done %>%
@@ -508,7 +716,8 @@ data_done %>%
                    `ПАВ\nинъекционно`= table(narco.factor),
                    `ПАВ\nнеинъекционно` = table(ne_narco.factor)
                    ) %>%
-  dplyr::ungroup() %>%
+  dplyr::ungroup() %>% 
+  as.data.table %>%
   melt %>%
   dplyr::mutate(value = as.numeric(value))  %>%
   dplyr::group_by(Homeless.mostfreq) %>% dplyr::mutate(Sum = sum(value)) %>% dplyr::ungroup() %>%
@@ -580,36 +789,6 @@ paste0('narco: ', narco$p.value)
 paste0('ne_narco: ', ne_narco$p.value)
 ```
 
-
-# Citizenship
-```{r}
-data$citizen.factor %>% 
-  table %>%
-  .[. != 0] %>%
-  as.data.frame %>% setNames(c('Answer', 'Freq')) %>%
-  ggplot(aes(Freq, fct_reorder(Answer, Freq))) +
-  geom_bar(stat = 'identity') +
-  theme_bw() +
-  labs(x = 'Patients', y = 'Answer') + 
-  theme(axis.title = element_text(face = 'bold', size = 14),
-        legend.title = element_text(face = 'bold', size = 14),
-        axis.text = element_text(size = 12),
-        legend.text = element_text(size = 12))
-
-data$citizen.factor %>% table %>% .[. != 0]
-
-
-## citizenship (by Masha)
-
-get_one_var_hist(data=data %>%
-                   filter(`citizen.factor` != 0) %>%
-                   mutate(`citizen.factor` = as.character(`citizen.factor`)),
-                 var='citizen.factor', out_dir='plots',
-                 xtitle='Гражданство', pall_values=c(wes_palettes$Rushmore1, wes_palettes$GrandBudapest1,
-                                                     wes_palettes$GrandBudapest2),
-                 height = 6, width = 8, ratio=0.8)
-```
-
 ## Social diseases
 ```{r}
 # Можно добавить какие-то переменные:
@@ -642,7 +821,7 @@ data %>%
   dplyr::filter(record_id %in% c(245, 1174, 1333)) #TEMP checking:
 ```
 
-## Social diseases plots
+### Plots
 ```{r}
 data_soc_ds <-
   data %>%
@@ -783,7 +962,9 @@ lues_plot
 # dev.off()
 ```
 
-## ICD-10: barplot
+## ICD-10
+
+### Freq
 ```{r dev = "png"}
 library('wesanderson')
 library('ggplot2')
@@ -816,7 +997,25 @@ ggplotly(icd_10.stat)
 icd_10.stat
 ```
 
-## ICD-10 vs homeless
+## Documents: passport, OMS, SNILS
+```{r}
+
+a <- get_one_var_hist(data=data, var='sn_status.factor', out_dir='plots',
+                      xtitle='Наличие СНИЛСа', pall_values=wes_palettes$Rushmore1,
+                      height = 4, width = 9)
+b <- get_one_var_hist(data=data, var='id_status.factor', out_dir='plots',
+                      xtitle='Наличие паспорта', pall_values=wes_palettes$Rushmore1,
+                      height = 4, width = 9)
+c <- get_one_var_hist(data=data, var='oms_status.factor', out_dir='plots',
+                      xtitle='Наличие ОМС', pall_values=wes_palettes$Rushmore1,
+                      height = 4, width = 9)
+
+abc_stacked <- ggpubr::ggarrange(a, b, c, nrow = 3, common.legend = T)
+ggsave(abc_stacked, filename = 'plots/sn_id_oms_stacked.png', height = 10, width = 11)
+
+```
+
+### Homeless
 ```{r fig.width=6, fig.height=6, warning = F, message =F}
 data %>%
   dplyr::select(record_id, Homeless, starts_with('ds_')) %>%
