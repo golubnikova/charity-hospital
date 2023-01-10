@@ -600,6 +600,26 @@ get_one_var_hist(data=data %>%
                  height = 6, width = 8, ratio=0.8)
 ```
 
+## Documents: passport, OMS, SNILS
+```{r}
+
+a <- get_one_var_hist(data=data, var='sn_status.factor', out_dir='plots',
+                      xtitle='Наличие СНИЛСа', pall_values=wes_palettes$Rushmore1,
+                      height = 4, width = 9)
+b <- get_one_var_hist(data=data, var='id_status.factor', out_dir='plots',
+                      xtitle='Наличие паспорта', pall_values=wes_palettes$Rushmore1,
+                      height = 4, width = 9)
+c <- get_one_var_hist(data=data, var='oms_status.factor', out_dir='plots',
+                      xtitle='Наличие ОМС', pall_values=wes_palettes$Rushmore1,
+                      height = 4, width = 9)
+a
+b
+c
+abc_stacked <- ggpubr::ggarrange(a, b, c, nrow = 3, common.legend = T)
+ggsave(abc_stacked, filename = 'plots/sn_id_oms_stacked.png', height = 10, width = 11)
+
+```
+
 ## Home
 
 ### Home overall
@@ -1022,25 +1042,6 @@ ggplotly(icd_10.stat)
 icd_10.stat
 ```
 
-## Documents: passport, OMS, SNILS
-```{r}
-
-a <- get_one_var_hist(data=data, var='sn_status.factor', out_dir='plots',
-                      xtitle='Наличие СНИЛСа', pall_values=wes_palettes$Rushmore1,
-                      height = 4, width = 9)
-b <- get_one_var_hist(data=data, var='id_status.factor', out_dir='plots',
-                      xtitle='Наличие паспорта', pall_values=wes_palettes$Rushmore1,
-                      height = 4, width = 9)
-c <- get_one_var_hist(data=data, var='oms_status.factor', out_dir='plots',
-                      xtitle='Наличие ОМС', pall_values=wes_palettes$Rushmore1,
-                      height = 4, width = 9)
-a
-b
-c
-abc_stacked <- ggpubr::ggarrange(a, b, c, nrow = 3, common.legend = T)
-ggsave(abc_stacked, filename = 'plots/sn_id_oms_stacked.png', height = 10, width = 11)
-
-```
 
 ### Homeless
 ```{r fig.width=6, fig.height=6, warning = F, message =F}
@@ -1089,6 +1090,42 @@ data %>%
   
 
 ```
+
+### where.category
+```{r fig.width=6, fig.height=6, warning = F, message =F}
+data %>%
+  dplyr::select(record_id, where.category,starts_with('ds_')) %>%
+  as.data.table %>%
+  melt.data.table(id.vars = c('record_id', 'where.category')) %>%
+  dplyr::mutate(value = as.factor(case_when(value == 1 ~ 'A00-B99',
+                                            value == 2 ~ 'C00-D48',
+                                            value == 3 ~ 'D50-D89',
+                                            value == 4 ~ 'E00-E90',
+                                            value == 5 ~ 'F00-F99',
+                                            value == 6 ~ 'G00-G99',
+                                            value == 7 ~ 'H00-H59',
+                                            value == 8 ~ 'H60-H95',
+                                            value == 9 ~ 'I00-I99',
+                                            value == 10 ~ 'J00-J99',
+                                            value == 11 ~ 'K00-K93',
+                                            value == 12 ~ 'L00-L99',
+                                            value == 13 ~ 'M00-M99',
+                                            value == 14 ~ 'N00-N99',
+                                            value == 15 ~ 'O00-O99',
+                                            value == 16 ~ 'Q00-Q99',
+                                            value == 17 ~ 'S00-T98',
+                                            value == 18 ~ 'V01-Y98',
+                                            value == 19 ~ 'Z00-Z99') ) ) %>%
+  dplyr::group_by(where.category) %>%
+  dplyr::summarise(icd10 = names(table(value)),
+                   Count = table(value)
+                   )
+  # Plot
+
+  
+
+```
+
 
 # Shiny
 ## Plot quant vs quant
