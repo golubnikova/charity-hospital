@@ -1,8 +1,8 @@
 ---
 title: "charity-analysis"
-subtitle:"version_004"
+subtitle:"version_005"
 author: "PotapenkoEugene"
-date: "2022-12-20"
+date: "2023-11-01"
 output: html_document
 ---
 
@@ -625,6 +625,31 @@ data %>%
 
 ```
 
+## Where
+
+### Where.category
+```{r}
+data %>%
+  dplyr::filter(!is.na(redcap_repeat_instrument)) %>%
+  dplyr::select(record_id, redcap_repeat_instrument, where.category) %>%
+  dplyr::summarise(Count = table(where.category, exclude = NULL),
+                   where.category = names(table(where.category, exclude = NULL))) %>%
+  dplyr::mutate(where.category = case_when(is.na(where.category) ~ 'нет данных',
+                                     T ~ where.category)) %>%
+  # Plot 
+  ggplot(aes(Count, fct_reorder(where.category, Count) , fill = where.category)) +
+  geom_bar(stat = 'identity') +
+  scale_fill_manual(values = wes_palettes$Cavalcanti1[1:7]) +
+  theme_bw() +
+  theme(axis.title = element_text(face = 'bold', size = 14),
+        legend.title = element_text(face = 'bold', size = 14),
+        axis.text = element_text(size = 12),
+        legend.text = element_text(size = 12),
+        legend.position = 'none') +
+  labs(x  = 'Количество приемов', y = 'Места приема бездомных пациентов')
+
+```
+
 ## Diagnosis
 
 ### vs Home
@@ -1009,7 +1034,9 @@ b <- get_one_var_hist(data=data, var='id_status.factor', out_dir='plots',
 c <- get_one_var_hist(data=data, var='oms_status.factor', out_dir='plots',
                       xtitle='Наличие ОМС', pall_values=wes_palettes$Rushmore1,
                       height = 4, width = 9)
-
+a
+b
+c
 abc_stacked <- ggpubr::ggarrange(a, b, c, nrow = 3, common.legend = T)
 ggsave(abc_stacked, filename = 'plots/sn_id_oms_stacked.png', height = 10, width = 11)
 
