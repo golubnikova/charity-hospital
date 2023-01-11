@@ -383,7 +383,7 @@ dummy_vars_raw = c('Observation', 'Homeless',
 dummy_vars_already <- c('complaint_lite')
 
 # Dinamic variables
-dinamic_vars = c('Observation', 'Homeless', 'alc_status.factor', 'smp')
+dinamic_vars = c('Observation', 'Homeless', 'alc_status.factor', 'smp', 'where.category')
 
 sequence_vars = c('ds.ICD.intervals')
 ```
@@ -432,12 +432,21 @@ dinamic_mostfreq <-
     dplyr::rename_all(function(x) ifelse(x != 'record_id', paste0(x, '.mostfreq'), x)) %>%
     dplyr::mutate_at(vars(ends_with('.mostfreq')), 
                      function(x) most_frequent_dinamics(x) %>% replace_na('Нет данных') %>% as.factor)
+
+# Save raw 
+dinamic <-
+  dinamic %>% 
+  setNames(c('record_id', paste0(colnames(dinamic)[-1], '.raw')))
 ## Merge
-data_dinamic <- left_join(dinamic_firstlast, dinamic_mostfreq, by = 'record_id')
+data_dinamic <- 
+  dinamic %>%
+  left_join(dinamic_mostfreq, by = 'record_id') %>%
+  left_join(dinamic_firstlast, by = 'record_id')
 
 # Renew names of dinamic vars with dinamic suffix
 dinamic_vars = c(paste0(dinamic_vars, '.dinamic'),
-                 paste0(dinamic_vars, '.mostfreq'))
+                 paste0(dinamic_vars, '.mostfreq'),
+                 paste0(dinamic_vars, '.raw'))
 
 # Sequence vars
 data_seq <-
@@ -499,7 +508,7 @@ quant_vars = c(quant_vars, data_rowwise %>% dplyr::select(ends_with('.number')) 
 ```
 
 
-# Basic stats
+# Combine all in tidy df
 ```{r}
 selected_vars <- c(base_vars.bool, base_vars.factor, quant_vars, dummy_quant_vars, dinamic_vars, sequence_vars)
 ##
@@ -518,6 +527,17 @@ data_done <-
   # Join with sequence vars
   right_join(data_seq, by = 'record_id') %>%
   dplyr::select(record_id, all_of(selected_vars))
+```
+
+# Add some variable (from several existed)
+```{r}
+# Alco
+alc_evidence1 = grepl('на приеме чувствуется запах алкоголя|состояние измененного сознания',
+                               data_done$alc_status.factor.raw)
+alc_evidence2 = grepl('есть в настоящее время',
+                               data_done$alcogolic.factor)
+
+data_done$alc = alc_evidence1 | alc_evidence2
 ```
 
 # HandMade analyses
