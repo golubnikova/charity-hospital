@@ -189,6 +189,28 @@ codeICD_to_IntervalICD <- function(ICD){ # --> c(ICD, description)
   if(length(answer) == 0){answer <- NA}
   return(answer)
 }
+
+# Required df with value column
+decode.ICD <- function(df) { df %>%  dplyr::mutate(value = as.factor(case_when(value == 1 ~ 'A00-B99',
+                                            value == 2 ~ 'C00-D48',
+                                            value == 3 ~ 'D50-D89',
+                                            value == 4 ~ 'E00-E90',
+                                            value == 5 ~ 'F00-F99',
+                                            value == 6 ~ 'G00-G99',
+                                            value == 7 ~ 'H00-H59',
+                                            value == 8 ~ 'H60-H95',
+                                            value == 9 ~ 'I00-I99',
+                                            value == 10 ~ 'J00-J99',
+                                            value == 11 ~ 'K00-K93',
+                                            value == 12 ~ 'L00-L99',
+                                            value == 13 ~ 'M00-M99',
+                                            value == 14 ~ 'N00-N99',
+                                            value == 15 ~ 'O00-O99',
+                                            value == 16 ~ 'Q00-Q99',
+                                            value == 17 ~ 'S00-T98',
+                                            value == 18 ~ 'V01-Y98',
+                                            value == 19 ~ 'Z00-Z99')))
+}
 ```
 
 # Postprocessing
@@ -223,7 +245,11 @@ data <-
                             where %in% c(11,10,12) ~ 'пункт обогрева',
                             where %in% c(15) ~ 'медицинский центр',
                             where == 13 ~ 'удаленная консультация'
-                            ))
+                            )) %>%
+  dplyr::rename(value = ds_icd_1) %>% decode.ICD %>% dplyr::rename(ds_icd_1 = value) %>%
+  dplyr::rename(value = ds_icd_2) %>% decode.ICD %>% dplyr::rename(ds_icd_2 = value) %>%
+  dplyr::rename(value = ds_icd_3) %>% decode.ICD %>% dplyr::rename(ds_icd_3 = value)
+
 # process diagnose variable
   
 
@@ -347,7 +373,7 @@ decode.correct <-
     dplyr::mutate(text.intervals = sapply(text, function(x){
                         str_split(x, ',') %>% unlist %>% trimws %>% 
                         sapply(codeICD_to_IntervalICD) %>%
-                        unique %>%
+                        unique %>% #TODO make var with repeats!
                         paste(collapse = ',')
                       })
                   ) %>%
@@ -370,7 +396,9 @@ base_vars.factor = c('gender.factor', 'age.group',
               # Docs
               'id_status.factor.reason', 'oms_status.factor.reason', 'sn_status.factor.reason',
               # Additctions
-              'nicotin.factor', 'alcogolic.factor', 'narco.factor', 'ne_narco.factor')
+              'nicotin.factor', 'alcogolic.factor', 'narco.factor', 'ne_narco.factor',
+              'hiv_1.factor', 'lues.factor', 'hb_1.factor',  'hc_1.factor',
+              'tbi.factor')
 
 base_vars.bool = c('id_status.factor.bool', 'oms_status.factor.bool', 'sn_status.factor.bool')
 
@@ -383,9 +411,10 @@ dummy_vars_raw = c('Observation', 'Homeless',
 dummy_vars_already <- c('complaint_lite')
 
 # Dinamic variables
-dinamic_vars = c('Observation', 'Homeless', 'alc_status.factor', 'smp', 'where.category')
+dinamic_vars = c('Observation', 'Homeless', 'alc_status.factor', 'smp', 'where.category', 'glu', 'ds_icd_1', 'ds_icd_2', 'ds_icd_3')
 
 sequence_vars = c('ds.ICD.intervals')
+
 ```
 
 # Transform data
@@ -530,7 +559,7 @@ data_done <-
 ```
 
 # Add some variable (from several existed)
-```{r}
+```{r warning=F}
 # Alco
 alc_evidence1 = grepl('на приеме чувствуется запах алкоголя|состояние измененного сознания',
                                data_done$alc_status.factor.raw)
@@ -538,6 +567,36 @@ alc_evidence2 = grepl('есть в настоящее время',
                                data_done$alcogolic.factor)
 
 data_done$alc = alc_evidence1 | alc_evidence2
+
+# Combine social diseases and tests
+data_done$hiv.bool = ifelse(data_done$hiv_1.factor %in% c('есть, со слов', 'диспансерный учет в ЦС'), T, F) | data_done$etest_hiv.factor_положительный
+
+data_done$hb.bool = ifelse(data_done$hb_1.factor %in% c('есть, со слов', 'диспансерный учет в ЦС'), T, F) | data_done$etest_hbsag.factor_положительный
+
+data_done$hc.bool = ifelse(data_done$hc_1.factor %in% c('есть, со слов', 'диспансерный учет в ЦС'), T, F) | data_done$etest_hcv.factor_положительный
+
+data_done$lues.bool = ifelse(data_done$lues.factor == 'болел/лечился в диспансере/стационаре', T, F) | data_done$etest_lues.factor_положительный
+
+# Diabet add
+data_done$glu <-
+  data_done$glu.raw %>%
+  str_split('\\|') %>%
+  lapply(function(x) {
+    y = x %>% na_if('NA') %>% as.numeric %>% max(na.rm = T)
+    y > 11.1
+    }) %>%
+  unlist
+
+# ICD variable combining
+data_done %<>% 
+  dplyr::mutate(ds_icd.raw = paste(ds_icd_1.raw, ds_icd_2.raw, ds_icd_3.raw, sep = '|') %>% 
+                  gsub('NA\\||\\|NA', '', .) %>% na_if('NA') %>% gsub('\\|', ',', .)) %>% 
+  dplyr::mutate(DS = paste(ds.ICD.intervals.seq, ds_icd.raw, sep = ',') %>% str_split(',') %>% sapply(function(x) x %>% trimws %>% unique %>% paste(collapse = ',')) %>% na_if('NA') %>% gsub('NA,', '', .)) %>%
+  dplyr::mutate(DS.N = DS %>% str_split(',') %>% lapply(function(x) {
+    if(any(is.na(x))) {return(NA)} 
+    else{return(length(x))}
+    }) %>% unlist)
+
 ```
 
 # HandMade analyses
@@ -666,13 +725,32 @@ df.ds.home %>%
   facet_grid(rows = vars(Homeless)) +
   geom_bar(stat = 'identity') +
   theme(axis.text.x = element_text(angle = 75, vjust = 0.5))
+
+#TODO
+# Chisq test
 ```
 
 ### vs Addictions
 ```{r message=F}
 #TODO
-data_done %>%
-    dplyr::select(ds.ICD.intervals.N, ds.ICD.intervals.seq, alcogolic.factor)
+ds.alco <- data.frame(ds = data_done$DS %>% str_split(',') %>% unlist,
+           alc = rep(data_done$alc, data_done$DS.N %>% replace_na(1))) %>%
+  na.omit
+
+chisq.lst <-
+  lapply(ds.alco$ds %>% table %>% names, function(interval){
+  df = ds.alco[ds.alco$ds == interval,]
+  chisq.test(df$alc)
+}) 
+
+names(chisq.lst) <- ds.alco$ds %>% table %>% names
+
+chisq.lst
+```
+
+### vs Diabet
+```{r}
+
 ```
 
 
@@ -986,35 +1064,19 @@ lues_plot
 
 ### Freq
 ```{r dev = "png"}
-library('wesanderson')
-library('ggplot2')
-library('plotly')
-
-icd_10 <- data %>% 
-  dplyr::select(record_id, starts_with('ds_icd'), -ends_with('.factor')) %>%
-  as.data.table %>%
-  melt.data.table(id.vars = 'record_id', variable.name = "ds_icd", value.name = "illness_name") %>% 
-  na.omit() %>% 
-  as.data.frame %>%
-  transform(illness_name = factor(illness_name,
-                                  levels = c(1:19),
-                                  labels = c("A00-B99", "C00-D48", "D50-D89", "E00-E90", "F00-F99", "G0-G99", "H00-H59", "H65-H75", "I00-I99", "J00-J99", "K00-K93", "L55-L59", "M00-M99", "N00-N99", "O00-O99", "Q00-Q99", "S00-T98", "V01-Y98", "Z00-Z13")))
-  
-#icd_10$illness_name <- as.factor(icd_10$illness_name)
-
-icd_10.stat <- ggplot(data = icd_10, aes(x = illness_name), 
-          position="dodge") +
-          geom_bar(fill = wes_palette("Royal2")[5]) +
-          xlab('Заболевания по МКБ-10') +
-          ylab('Количество пациентов с данным заболеванием (по посещениям)') +
-          theme(legend.position="left") +
-          aes(stringr::str_wrap(illness_name, 15)) + xlab(NULL) +
-          theme_minimal() +
-          coord_flip()
-          
-ggplotly(icd_10.stat)
-
-icd_10.stat
+data.frame(ICD = data_done$DS %>% str_split(',') %>% unlist) %>%
+  na.omit %>%
+  ggplot(aes(x = fct_rev(fct_infreq(ICD))), 
+            position="dodge") +
+            geom_bar(fill = wes_palette("Royal2")[5]) +
+            geom_text(stat='count', aes(label=..count..), hjust = -0.2) +
+            xlab('Заболевания по МКБ-10') +
+            ylab('Количество пациентов с данным заболеванием (по посещениям)') +
+            theme(legend.position="left") +
+            # aes(stringr::str_wrap(ICD, 15)) + 
+  xlab(NULL) +
+            theme_minimal() +
+            coord_flip()
 ```
 
 ## Documents: passport, OMS, SNILS
