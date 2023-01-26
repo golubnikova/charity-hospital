@@ -211,6 +211,12 @@ decode.ICD <- function(df) { df %>%  dplyr::mutate(value = as.factor(case_when(v
                                             value == 18 ~ 'V01-Y98',
                                             value == 19 ~ 'Z00-Z99')))
 }
+
+# Function for ordinal encoding
+encode_ordinal <- function(x, order = sort(unique(x))) {
+  x <- as.numeric(factor(x, levels = order, exclude = NULL))
+  as.factor(x)
+}
 ```
 
 # Postprocessing
@@ -650,6 +656,7 @@ get_one_var_hist(data=data, var='gender.factor', out_dir='plots',
 
 ```
 
+
 ## Citizenship
 ```{r}
 data$citizen.factor %>% 
@@ -706,53 +713,175 @@ data %>%
 
 ## Diagnosis
 
-### vs Home
-```{r message=F}
-# Create long dataframe
-df.ds.home <-
-  data.frame(record_id = rep(data_done$record_id, data_done$ds.ICD.intervals.N),
-             ICD = data_done$ds.ICD.intervals.seq %>% 
-               str_split(',') %>% 
-               unlist,
-           Homeless = rep(data_done$Homeless.mostfreq, data_done$ds.ICD.intervals.N)
+### vs Addictions
+```{r warning = F}
+#TODO
+ds.other <- data.frame(ds = data_done$DS %>% str_split(',') %>% unlist,
+                       alc = rep(data_done$alc, data_done$DS.N %>% replace_na(1)),
+                       glu = rep(data_done$glu, data_done$DS.N %>% replace_na(1)),
+                       home = rep(data_done$Homeless.mostfreq, data_done$DS.N %>% replace_na(1)),
+                       where = rep(data_done$where.category.mostfreq, data_done$DS.N %>% replace_na(1))
            )
 
-df.ds.home %>%
-  dplyr::group_by(Homeless) %>%
-  dplyr::summarise(ICD.freq = table(ICD),
-                   ICD.name = names(table(ICD))) %>%
-  ggplot(aes(ICD.name, ICD.freq)) +
-  facet_grid(rows = vars(Homeless)) +
-  geom_bar(stat = 'identity') +
-  theme(axis.text.x = element_text(angle = 75, vjust = 0.5))
-
-#TODO
-# Chisq test
-```
-
-### vs Addictions
-```{r message=F}
-#TODO
-ds.alco <- data.frame(ds = data_done$DS %>% str_split(',') %>% unlist,
-           alc = rep(data_done$alc, data_done$DS.N %>% replace_na(1))) %>%
-  na.omit
+df <- data_done %>% dplyr::select(DS, alc) %>% na.omit
 
 chisq.lst <-
-  lapply(ds.alco$ds %>% table %>% names, function(interval){
-  df = ds.alco[ds.alco$ds == interval,]
-  chisq.test(df$alc)
+  lapply(names.ds, function(dsname){
+      mask = grepl(dsname, df$DS)
+  data.frame(state = c(rep('One', df$alc[mask] %>% length),
+                       rep('Other', df$alc[!mask] %>% length)),
+             alc = c(df$alc[mask], df$alc[!mask])) %>% 
+    table %>% 
+    chisq.test()  
+  })
+
+names(chisq.lst) <- names.ds
+
+chisq.lst
+
+bonf = 0.05/length(names.ds)
+```
+### vs Where
+
+```{r message =F, fig.width=8, fig.height=6}
+ds.other %>%
+  dplyr::filter(!is.na(ds)) %>%
+  dplyr::group_by(ds, where) %>%
+  dplyr::summarise(where.N = n()) %>% dplyr::ungroup() %>%
+  # Plot
+  ggplot(aes(fct_reorder(ds, where.N,.desc = T), where.N)) +
+  facet_grid(rows = vars(where)) +
+  geom_bar(stat = 'identity', fill = wes_palettes$Rushmore1[4]) +
+  theme_bw() +
+  labs(x = 'Заболевания по МКБ-10', y = 'Количество посещений в данной категории',) + 
+  theme(axis.title = element_text(face = 'bold', size = 12),
+        legend.title = element_text(face = 'bold', size = 12),
+        axis.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 45, vjust = 0.6),
+        legend.text = element_text(size = 7))
+```
+
+### vs Home
+```{r message=F, fig.width=8, fig.height=6}
+ds.other %>%
+  dplyr::filter(!is.na(ds)) %>%
+  dplyr::group_by(ds, home) %>%
+  dplyr::summarise(home.N = n()) %>% dplyr::ungroup() %>%
+  # Plot
+  ggplot(aes(fct_reorder(ds, home.N,.desc = T), home.N)) +
+  facet_grid(rows = vars(home)) +
+  geom_bar(stat = 'identity', fill = wes_palettes$Rushmore1[3]) +
+  theme_bw() +
+  labs(x = 'Заболевания по МКБ-10', y = 'Количество посещений в данной категории') + 
+  theme(axis.title = element_text(face = 'bold', size = 12),
+        legend.title = element_text(face = 'bold', size = 12),
+        axis.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 45, vjust = 0.6),
+        legend.text = element_text(size = 7))
+
+# Chisq
+df <- data_done %>% dplyr::select(DS, Homeless.mostfreq) %>% na.omit
+
+chisq.lst <-
+  lapply(names.ds, function(dsname){
+      mask = grepl(dsname, df$DS)
+  data.frame(state = c(rep('One', df$Homeless.mostfreq[mask] %>% length),
+                       rep('Other', df$Homeless.mostfreq[!mask] %>% length)),
+             alc = c(df$Homeless.mostfreq[mask], df$Homeless.mostfreq[!mask])) %>% 
+    table %>% 
+    chisq.test()  
+  })
+
+names(chisq.lst) <- names.ds
+
+chisq.lst
+
+bonf = 0.05/length(names.ds)
+
+```
+
+### vs Diabet
+```{r warning = F}
+chisq.test(ds.other$ds, ds.other$glu)
+
+chisq.lst <-
+  lapply(ds.other$ds %>% table %>% names, function(interval){
+  df = ds.other[ds.other$ds == interval,] %>% dplyr::select(ds, glu) %>% na.omit
+  if(sum(df$glu) == 0) {return(NULL)}
+  chisq.test(df$glu)
 }) 
 
-names(chisq.lst) <- ds.alco$ds %>% table %>% names
+names(chisq.lst) <- ds.other$ds %>% table %>% names
 
 chisq.lst
 ```
 
-### vs Diabet
+### vs HIV
 ```{r}
+df <- data_done %>% dplyr::select(DS, hiv.bool) %>% na.omit
 
+chisq.lst <-
+  lapply(names.ds, function(dsname){
+      mask = grepl(dsname, df$DS)
+  data.frame(state = c(rep('One', df$hiv.bool[mask] %>% length),
+                       rep('Other', df$hiv.bool[!mask] %>% length)),
+             alc = c(df$hiv.bool[mask], df$hiv.bool[!mask])) %>% 
+    table #%>% 
+    # chisq.test()  
+  })
+
+names(chisq.lst) <- names.ds
+
+chisq.lst
+
+bonf = 0.05/length(names.ds)
 ```
 
+## ObsNum
+
+```{r}
+wilcox.test(data_done$ObsNum[data_done$glu],
+            data_done$ObsNum[!data_done$glu])
+
+data_done %>%
+  ggplot(aes(ObsNum, fill = glu)) +
+  geom_boxplot()
+
+wilcox.test(data_done$ObsNum[data_done$hiv.bool],
+            data_done$ObsNum[!data_done$hiv.bool])
+
+data_done %>%
+  ggplot(aes(ObsNum, fill = hiv.bool)) +
+  geom_boxplot()
+```
+
+
+## Tuber
+```{r message=F, fig.height=6}
+
+data_done %>%
+  dplyr::select(Homeless.mostfreq, tbi.factor) %>%
+  dplyr::mutate(tbi.factor = tbi.factor %>% as.character %>% replace_na('нет данных') %>%  encode_ordinal) %>%
+  dplyr::group_by(Homeless.mostfreq, tbi.factor) %>%
+  dplyr::summarise(N = n()) %>%
+  ggplot(aes(tbi.factor, N)) +
+    facet_grid(rows = vars(Homeless.mostfreq)) +
+    geom_bar(stat = 'identity', fill = wes_palettes$Rushmore1[3]) +
+    theme_bw() +
+    labs(x = 'Категории', y = 'Количество визитов') + 
+    theme(axis.title = element_text(face = 'bold', size = 12),
+          legend.title = element_text(face = 'bold', size = 12),
+          axis.text = element_text(size = 12),
+          axis.text.x = element_text(angle = 45, vjust = 0.6),
+          legend.text = element_text(size = 7))
+```
+
+## Diabet 
+
+```{r message =F, fig.height=10}
+data_done %>%
+  dplyr::select(Homeless.mostfreq, glu) %>% table
+```
 
 ## Homeless
 ```{r fig.width=8}
@@ -1200,12 +1329,6 @@ data_done %>%
 
 ## Plot factor vs factor
 ```{r fig.width=6, fig.height=6}
-# Function for ordinal encoding
-encode_ordinal <- function(x, order = sort(unique(x))) {
-  x <- as.numeric(factor(x, levels = order, exclude = NULL))
-  as.factor(x)
-}
-
 plot_factor_vs_factor <- function(df.raw, var1, var2, dropNA = F, original.names = T){
   # Specify main vars:
   colors.vars <- wes_palettes$Zissou1[c(1,5)]
