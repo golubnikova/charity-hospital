@@ -33,9 +33,12 @@ if(!require('ggmosaic')) install.packages('ggmosaic') ; library(ggmosaic)
 if(!require('ggpol')) install.packages('ggpol') ; library(ggpol)
 if(!require('plotly')) install.packages('plotly') ; library(plotly)
 if(!require('ggplot2')) install.packages('ggplot2') ; library(ggplot2)
+if(!require('icesTAF')) install.packages('icesTAF') ; library(icesTAF)
+if(!require('grateful')) remotes::install_github("Pakillo/grateful") ; library(grateful)
 
-#if(!require('shiny')) install.packages('shiny') ; library(shiny)
+cite_packages()
 
+PLOTDIR = paste('plots/') ;mkdir(PLOTDIR)
 ```
 
 # Functions
@@ -220,7 +223,7 @@ encode_ordinal <- function(x, order = sort(unique(x))) {
 ```
 
 # Postprocessing
-```{r}
+```{r warning=F}
 data <-
   data %>%
   # Rename some vars
@@ -317,17 +320,14 @@ data <-
                 ds.ICD.intervals = text.intervals) %>%
   left_join(data, ., by = 'ds.processed')
 ```
+# chatGPT decoding diagnoses
 
-# EDA
 ```{r}
-# Look on lethal cases
-data$ds[grepl('смерть|летальный', data$ds, ignore.case = T)] # only 4 cases
-
 # chatGPT decoding of diagnosis in ICD-10 code
 if(F){ # skip by default
   # DS
   ds <- data$ds.processed %>% na.omit %>% unique
-  library(gptchatteR)
+  # library(gptchatteR)
   # Auth
   key = '...'
   chatter.auth(key) # need personal API key
@@ -395,6 +395,13 @@ rbind(decode.correct, decoded.incorrect) %>%
 }
 ```
 
+
+# EDA
+```{r}
+# Look on lethal cases
+data$ds[grepl('смерть|летальный', data$ds, ignore.case = T)] # only 4 cases
+```
+
 # Classified vars
 ```{r}
 # Base vars:
@@ -404,7 +411,7 @@ base_vars.factor = c('gender.factor', 'age.group',
               # Additctions
               'nicotin.factor', 'alcogolic.factor', 'narco.factor', 'ne_narco.factor',
               'hiv_1.factor', 'lues.factor', 'hb_1.factor',  'hc_1.factor',
-              'tbi.factor')
+              'tbi.factor', 'mls.factor')
 
 base_vars.bool = c('id_status.factor.bool', 'oms_status.factor.bool', 'sn_status.factor.bool')
 
@@ -603,15 +610,29 @@ data_done %<>%
     else{return(length(x))}
     }) %>% unlist)
 
+# SMP sum
+data_done$smp.bool <-
+  data_done$smp.raw %>% 
+    str_split('\\|') %>% 
+    lapply(function(x) {
+      xx = x %>% unique %>% na_if('NA')
+      if(length(xx) == 1 & all(is.na(xx))) {return(NA)}
+      'TRUE' %in% xx
+    }) %>% unlist
+
+# MLS
+
+data_done %<>%
+  dplyr::mutate(mls.bool = replace_na(mls.factor, 'нет') == 'да')
 ```
+
 
 # HandMade analyses
 
 ## AgeGender
-```{r fig.width=8}
+```{r fig.width=8, message=F}
 
-ggGender1 <-
-  data_done %>%
+data_done %>%
   dplyr::filter(!is.na(gender.factor) & !is.na(age.group)) %>%
   dplyr::group_by(age.group, gender.factor) %>%
   count %>%
@@ -624,10 +645,11 @@ ggGender1 <-
         legend.title = element_text(face = 'bold', size = 14),
         axis.text = element_text(size = 12),
         legend.text = element_text(size = 12))
-ggGender1
 
-ggGender2 <-
-  data_done %>%
+ggsave(paste0(PLOTDIR, 'Age_group.png'))
+
+
+data_done %>%
   dplyr::mutate(age.bins = cut(data_done$age.actual, 15),
                 count = 1) %>%
   dplyr::select(age.bins, count, gender.factor) %>%
@@ -646,35 +668,14 @@ ggGender2 <-
         axis.text = element_text(size = 12),
         legend.text = element_text(size = 12),
         strip.text.x = element_text(face = 'bold', size = 14))
-ggGender2
 
-## gender (by Masha)
-
-get_one_var_hist(data=data, var='gender.factor', out_dir='plots',
-                 xtitle='Пол', pall_values=wes_palettes$BottleRocket2,
-                 height = 2.5, width = 6)
-
+ggsave(paste0(PLOTDIR, 'Age_group2.png'))
 ```
 
 
 ## Citizenship
-```{r}
-data$citizen.factor %>% 
-  table %>%
-  .[. != 0] %>%
-  as.data.frame %>% setNames(c('Answer', 'Freq')) %>%
-  ggplot(aes(Freq, fct_reorder(Answer, Freq))) +
-  geom_bar(stat = 'identity') +
-  theme_bw() +
-  labs(x = 'Patients', y = 'Answer') + 
-  theme(axis.title = element_text(face = 'bold', size = 14),
-        legend.title = element_text(face = 'bold', size = 14),
-        axis.text = element_text(size = 12),
-        legend.text = element_text(size = 12))
 
-data$citizen.factor %>% table %>% .[. != 0]
-
-
+```{r message = F}
 ## citizenship (by Masha)
 
 get_one_var_hist(data=data %>%
@@ -689,7 +690,7 @@ get_one_var_hist(data=data %>%
 ## Home
 
 ### Home overall
-```{r}
+```{r message=F}
 data %>%
   dplyr::filter(!is.na(redcap_repeat_instrument)) %>%
   dplyr::select(record_id, redcap_repeat_instrument, Homeless) %>%
@@ -709,21 +710,25 @@ data %>%
         legend.position = 'none') +
   labs(x  = 'Observation', y = 'Home status')
 
+ggsave(paste0(PLOTDIR, 'Homeless_category.png'))
 ```
 
 ## Diagnosis
 
 ### vs Addictions
 ```{r warning = F}
-#TODO
+
 ds.other <- data.frame(ds = data_done$DS %>% str_split(',') %>% unlist,
                        alc = rep(data_done$alc, data_done$DS.N %>% replace_na(1)),
                        glu = rep(data_done$glu, data_done$DS.N %>% replace_na(1)),
                        home = rep(data_done$Homeless.mostfreq, data_done$DS.N %>% replace_na(1)),
-                       where = rep(data_done$where.category.mostfreq, data_done$DS.N %>% replace_na(1))
+                       where = rep(data_done$where.category.mostfreq, data_done$DS.N %>% replace_na(1)),
+                       smp = rep(data_done$smp.bool, data_done$DS.N %>% replace_na(1))
            )
 
 df <- data_done %>% dplyr::select(DS, alc) %>% na.omit
+
+names.ds <- data_done$DS %>% str_split(',') %>% unlist %>% na.omit %>% unique
 
 chisq.lst <-
   lapply(names.ds, function(dsname){
@@ -732,7 +737,7 @@ chisq.lst <-
                        rep('Other', df$alc[!mask] %>% length)),
              alc = c(df$alc[mask], df$alc[!mask])) %>% 
     table %>% 
-    chisq.test()  
+    chisq.test()
   })
 
 names(chisq.lst) <- names.ds
@@ -759,6 +764,8 @@ ds.other %>%
         axis.text = element_text(size = 12),
         axis.text.x = element_text(angle = 45, vjust = 0.6),
         legend.text = element_text(size = 7))
+
+ggsave(paste0(PLOTDIR, 'ICD_vs_Where.png'))
 ```
 
 ### vs Home
@@ -779,6 +786,7 @@ ds.other %>%
         axis.text.x = element_text(angle = 45, vjust = 0.6),
         legend.text = element_text(size = 7))
 
+ggsave(paste0(PLOTDIR, 'ICD_vs_Homeless.png'))
 # Chisq
 df <- data_done %>% dplyr::select(DS, Homeless.mostfreq) %>% na.omit
 
@@ -817,7 +825,7 @@ chisq.lst
 ```
 
 ### vs HIV
-```{r}
+```{r warning = F}
 df <- data_done %>% dplyr::select(DS, hiv.bool) %>% na.omit
 
 chisq.lst <-
@@ -826,8 +834,8 @@ chisq.lst <-
   data.frame(state = c(rep('One', df$hiv.bool[mask] %>% length),
                        rep('Other', df$hiv.bool[!mask] %>% length)),
              alc = c(df$hiv.bool[mask], df$hiv.bool[!mask])) %>% 
-    table #%>% 
-    # chisq.test()  
+    table %>% 
+    chisq.test()
   })
 
 names(chisq.lst) <- names.ds
@@ -836,6 +844,112 @@ chisq.lst
 
 bonf = 0.05/length(names.ds)
 ```
+
+### vs SMP
+
+```{r fig.width=10}
+ds.other %>%
+  dplyr::select(ds, smp) %>%
+  dplyr::filter(smp) %>%
+  ggplot(aes(y = fct_rev(fct_infreq(ds)))) +
+  geom_bar(fill = wes_palettes$Rushmore1[3]) +
+  labs(x = 'Категории', y = 'Количество') +
+  theme(axis.text.x = element_text(angle = 45)) +
+  theme(axis.title = element_text(face = 'bold', size = 12),
+          legend.title = element_text(face = 'bold', size = 12),
+          axis.text = element_text(size = 12),
+          axis.text.x = element_text(angle = 45, vjust = 0.6),
+          legend.text = element_text(size = 7))
+
+ggsave(paste0(PLOTDIR, 'ICD_of_SMP.png'))
+
+ds.other %>%
+  dplyr::select(ds, smp) %>%
+  dplyr::mutate(smp = smp %>% replace_na(FALSE)) %>%
+  na.omit %>%
+  dplyr::filter(!smp) %>%
+  ggplot(aes(y = fct_rev(fct_infreq(ds)))) +
+  geom_bar(fill = wes_palettes$Rushmore1[4]) +
+  labs(x = 'Категории', y = 'Количество') +
+  theme(axis.text.x = element_text(angle = 45)) +
+  theme(axis.title = element_text(face = 'bold', size = 12),
+          legend.title = element_text(face = 'bold', size = 12),
+          axis.text = element_text(size = 12),
+          axis.text.x = element_text(angle = 45, vjust = 0.6),
+          legend.text = element_text(size = 7))
+
+ggsave(paste0(PLOTDIR, 'ICD_of_nonSMP.png'))
+
+df <-
+  data_done %>% 
+  dplyr::select(alc, smp.bool) 
+  
+df %>% table
+df %>% table %>% chisq.test()
+
+df <-
+  data_done %>%
+  dplyr::select(smp.bool, Homeless.mostfreq) %>%
+  dplyr::mutate(smp.bool = smp.bool %>% replace_na(FALSE)) 
+
+df %>% table
+df %>% table %>% chisq.test
+```
+
+## Social anamnes 
+
+```{r}
+data_done$mls.bool %>% table
+
+df <-
+  data_done %>%
+  dplyr::select(alc, mls.bool)
+
+df %>% table
+
+chisq.test(df %>% table)
+```
+## Portrait
+
+```{r}
+data_done$alc %>% sum / length(data_done$alc)
+
+((data_done$gender.factor == 'мужской') %>% sum(na.rm = T)) / (!is.na(data_done$gender.factor)) %>% sum
+
+(data_done$sn_status.factor.bool %>% as.logical %>% sum(na.rm = T)) / nrow(data_done)
+(data_done$id_status.factor.bool %>% as.logical %>% sum(na.rm = T)) / nrow(data_done)
+(data_done$oms_status.factor.bool %>% as.logical %>% sum(na.rm = T)) / nrow(data_done)
+
+((data_done$age.group == '45-59 (средний возраст)') %>% sum(na.rm = T)) / (!is.na(data_done$age.group)) %>% sum
+
+(data_done$hiv.bool %>% sum(na.rm = T)) / nrow(data_done)
+
+(data_done$hc.bool %>% sum(na.rm = T)) / nrow(data_done)
+
+(data_done$lues.bool %>% sum(na.rm = T)) / nrow(data_done)
+
+(data_done$tbi.factor %in% names(data_done$tbi.factor %>% table)[1:3]) %>% sum(na.rm = T) / nrow(data_done)
+
+(data_done$glu %>% sum) / nrow(data_done)
+
+(data_done$DS %>% str_split(',') %>% sapply(function(x) 'I00-I99' %in% x) %>% sum(na.rm=T)) / nrow(data_done)
+
+(data_done$Homeless.mostfreq == 'домашний') %>% sum(na.rm = T) / nrow(data_done %>% dplyr::filter(Homeless.mostfreq != 'Нет данных'))
+(data_done$Homeless.mostfreq == 'условно уличный') %>% sum(na.rm = T) / nrow(data_done %>% dplyr::filter(Homeless.mostfreq != 'Нет данных'))
+(data_done$Homeless.mostfreq == 'уличный') %>% sum(na.rm = T) / nrow(data_done %>% dplyr::filter(Homeless.mostfreq != 'Нет данных'))
+
+
+((data$where.category == 'стоянка') %>% sum(na.rm = T)) / nrow(data %>% dplyr::filter(!is.na(where.category)))
+
+((data$family.factor == 'состоит в браке') %>% sum(na.rm = T)) / nrow(data %>% dplyr::filter(!is.na(family.factor)))
+
+((data$education.factor == 'высшее, н/высшее') %>% sum(na.rm = T)) / nrow(data %>% dplyr::filter(!is.na(education.factor)))
+
+((data$education.factor == 'средне-специальное') %>% sum(na.rm = T)) / nrow(data %>% dplyr::filter(!is.na(education.factor)))
+
+((data$citizen.factor == 'Россия') %>% sum(na.rm = T)) / nrow(data %>% dplyr::filter(!is.na(citizen.factor)))
+```
+
 
 ## ObsNum
 
@@ -846,6 +960,8 @@ wilcox.test(data_done$ObsNum[data_done$glu],
 data_done %>%
   ggplot(aes(ObsNum, fill = glu)) +
   geom_boxplot()
+ggsave(paste0(PLOTDIR, 'Diabetics_ObsNum.png'))
+
 
 wilcox.test(data_done$ObsNum[data_done$hiv.bool],
             data_done$ObsNum[!data_done$hiv.bool])
@@ -853,6 +969,7 @@ wilcox.test(data_done$ObsNum[data_done$hiv.bool],
 data_done %>%
   ggplot(aes(ObsNum, fill = hiv.bool)) +
   geom_boxplot()
+ggsave(paste0(PLOTDIR, 'HIV_ObsNum.png'))
 ```
 
 
@@ -874,6 +991,8 @@ data_done %>%
           axis.text = element_text(size = 12),
           axis.text.x = element_text(angle = 45, vjust = 0.6),
           legend.text = element_text(size = 7))
+
+ggsave(paste0(PLOTDIR, 'Tub_vs_Homeless.png'))
 ```
 
 ## Diabet 
@@ -883,10 +1002,11 @@ data_done %>%
   dplyr::select(Homeless.mostfreq, glu) %>% table
 ```
 
+
 ## Homeless
 ```{r fig.width=8}
-ggHome <-
-  data_done %>%
+
+data_done %>%
   dplyr::filter(!is.na(Homeless.dinamic)) %>%
   dplyr::group_by(Homeless.dinamic) %>%
   count %>% 
@@ -900,7 +1020,7 @@ ggHome <-
         legend.title = element_text(face = 'bold', size = 14),
         axis.text = element_text(size = 12),
         legend.text = element_text(size = 12))
-ggHome
+ggsave(paste0(PLOTDIR, 'Homeless_dinamic_barplt.png'))
 
 
 # Parlament plot
@@ -909,7 +1029,17 @@ df_count <-
   dplyr::filter(!is.na(Homeless.dinamic)) %>%
   dplyr::group_by(Homeless.dinamic) %>%
   count %>%
-  dplyr::mutate(Homeless.dinamic = as.character(Homeless.dinamic)) %>%
+  dplyr::mutate(Homeless.dinamic = factor(Homeless.dinamic, 
+                                          levels = c('Нет данных',
+                                                     'условно уличный', 
+                                                     'уличный',
+                                                     'домашний',
+                                                     'уличный -> условно уличный',
+                                                     'условно уличный -> домашний',
+                                                     'уличный -> домашний',
+                                                     'условно уличный -> уличный',
+                                                     'домашний -> условно уличный',
+                                                     'домашний -> уличный'))) %>%
   dplyr::arrange(desc(n))
 
 # Plot
@@ -919,7 +1049,7 @@ ggplot(df_count) +
                                "black", "blue", "lightblue", "yellow", 
                                "red","purple", "green",
                                'orange', 'tomato4'), 
-                    labels = df_count$Homeless.dinamic) +
+                    labels = levels(df_count$Homeless.dinamic)) +
   coord_fixed() + 
   labs(fill = 'Home status') +
   theme(axis.title = element_text(face = 'bold', size = 14),
@@ -927,6 +1057,13 @@ ggplot(df_count) +
         axis.text = element_text(size = 12),
         legend.text = element_text(size = 12)) +
   theme_void()
+
+ggsave(paste0(PLOTDIR, 'Homeless_dinamic_parlament.png'))
+
+(!is.na(data$glu)) %>% sum / (data %>% nrow)
+
+
+(data_done$glu.mostfreq != 'Нет данных') %>% sum / nrow(data_done)
 ``` 
 
 
@@ -967,37 +1104,7 @@ data_done %>%
         legend.text = element_text(size = 18),
         strip.text.x = element_text(face = 'bold', size = 18))
 
-# Link with Home status(mostfreq)
-
-data_done %>%
-  dplyr::select(alcogolic.factor, Homeless.mostfreq) %>%
-  dplyr::mutate(alcogolic.factor = alcogolic.factor %>% as.character %>% replace_na('Нет данных') %>% as.factor) %>%
-  dplyr::filter(Homeless.mostfreq != 'Нет данных' &
-                alcogolic.factor != 'Нет данных') %>%
-  dplyr::mutate(alcogolic.factor = factor(alcogolic.factor, 
-                                          levels = c('отрицает/отказ от ответа',
-                                                     'избавился/был зависим',
-                                                     'есть в настоящее время')),
-                Homeless.mostfreq = factor(Homeless.mostfreq,
-                                           levels = c('уличный',
-                                                      'условно уличный',
-                                                      'домашний'))) %>%
-  # Plot
-      ggplot() +
-        geom_mosaic(aes(x = product(alcogolic.factor, 
-                                    Homeless.mostfreq)), 
-                    fill = wes_palettes$Rushmore1[3]) +
-        geom_mosaic_text(aes(x = product(alcogolic.factor, 
-                                    Homeless.mostfreq), label = after_stat(.wt)), as.label=TRUE) +
-      theme_bw() +
-  theme(axis.title = element_text(face = 'bold', size = 14),
-        legend.title = element_text(face = 'bold', size = 14),
-        axis.text = element_text(size = 12, face = 'bold'),
-        legend.text = element_text(size = 12),
-        strip.text.x = element_text(face = 'bold', size = 14)) +
-  labs(y = 'Алкогольная зависимость',
-       x = 'Статус бездомности')
-
+ggsave(paste0(PLOTDIR, 'Homeless_vs_Addictions.png'))
 
 data_done %>%
   dplyr::select(Homeless.mostfreq, alcogolic.factor, nicotin.factor, narco.factor, ne_narco.factor) %>%
@@ -1049,7 +1156,7 @@ data %>%
 ```
 
 ### Plots
-```{r}
+```{r message=F}
 data_soc_ds <-
   data %>%
   dplyr::filter(is.na(redcap_repeat_instrument)) %>% # take only informative fields
@@ -1068,8 +1175,8 @@ just_hiv <- data_soc_ds %>%
   filter(!is.na(etest_hiv.factor) & !is.na(hiv_1.factor)) %>%
   select(etest_hiv.factor, hiv_1.factor, artv.factor)
 
-hiv_plot <-
-  just_hiv %>%
+
+just_hiv %>%
   ggplot(aes(x = hiv_1.factor, fill = etest_hiv.factor )) +
   geom_bar() +
   labs(x = 'Данные опроса', y = 'Количество', fill = 'Результат экспресс-тестирования') +
@@ -1079,7 +1186,8 @@ hiv_plot <-
         legend.title = element_text(face = 'bold', size = 14),
         axis.text = element_text(size = 12),
         legend.text = element_text(size = 12))
-hiv_plot
+
+ggsave(paste0(PLOTDIR, 'HIV_test.png'))
 
 # Ниже код для сохранения рисунков
 # png(filename="ВИЧ.png", width = 750, height = 500)
@@ -1100,8 +1208,8 @@ just_hb <- data_soc_ds %>%
 # table(just_hb$hb_1.factor)
 # table(just_hb$etest_hbsag.factor)
 
-hb_plot <-
-  just_hb %>%
+
+just_hb %>%
   ggplot(aes(x = hb_1.factor, fill = etest_hbsag.factor )) +
   geom_bar(width = 0.5) +
   labs(x = 'Данные опроса', y = 'Количество', fill = 'Результат экспресс-теста') +
@@ -1112,17 +1220,18 @@ hb_plot <-
         axis.text = element_text(size = 16),
         legend.text = element_text(size = 14),
         legend.position = "none")
-hb_plot
+
+ggsave(paste0(PLOTDIR, 'hb_test.png'))
 
 # library(ggbubr)
 # library(grid)
 # library(cowplot)
 
-legend <- get_legend(hb_plot)
-grid.newpage()                              
-
-# Draw Only legend 
-grid.draw(legend)
+# legend <- get_legend(hb_plot)
+# grid.newpage()                              
+# 
+# # Draw Only legend 
+# grid.draw(legend)
 
 # png(filename="ВГВ.png", width = 750, height = 750)
 # plot(hb_plot)
@@ -1137,8 +1246,8 @@ just_hc <- data_soc_ds %>%
   filter(!is.na(etest_hcv.factor) & !is.na(hc_1.factor)) %>%
   select(etest_hcv.factor, hc_1.factor)
 
-hc_plot <-
-  just_hc %>%
+
+just_hc %>%
   ggplot(aes(x = hc_1.factor, fill = etest_hcv.factor )) +
   geom_bar(width = 0.5) +
   labs(x = 'Данные опроса', y = 'Количество', fill = 'Результат экспресс-теста') +
@@ -1151,7 +1260,8 @@ hc_plot <-
         legend.position = "none") # +
   # geom_text(stat = "count", 
            # aes(label = after_stat(count)), vjust = 0.5)
-hc_plot
+
+ggsave(paste0(PLOTDIR, 'hc_test.png'))
 
 # png(filename="ВГC.png", width = 750, height = 750)
 # plot(hc_plot)
@@ -1168,8 +1278,8 @@ just_lues <- data_soc_ds %>%
 table(just_lues$lues.factor)
 table(just_lues$etest_lues.factor)
 
-lues_plot <-
-  just_lues %>%
+
+just_lues %>%
   ggplot(aes(x = lues.factor, fill = etest_lues.factor )) +
   geom_bar(width = 0.5) +
   labs(x = 'Данные опроса', y = 'Количество', fill = 'Результат экспресс-теста') +
@@ -1182,7 +1292,7 @@ lues_plot <-
         legend.position = "none") # +
 #  geom_text(stat = "count", 
  #           aes(label = after_stat(count)), vjust = -1)
-lues_plot
+ggsave(paste0(PLOTDIR, 'lues_test.png'))
 
 # png(filename="сиф.png", width = 750, height = 750)
 # plot(lues_plot)
@@ -1200,7 +1310,7 @@ data.frame(ICD = data_done$DS %>% str_split(',') %>% unlist) %>%
             geom_bar(fill = wes_palette("Royal2")[5]) +
             geom_text(stat='count', aes(label=..count..), hjust = -0.2) +
             xlab('Заболевания по МКБ-10') +
-            ylab('Количество пациентов с данным заболеванием (по посещениям)') +
+            ylab('Количество пациентов с данным заболеванием') +
             theme(legend.position="left") +
             # aes(stringr::str_wrap(ICD, 15)) + 
   xlab(NULL) +
@@ -1211,248 +1321,19 @@ data.frame(ICD = data_done$DS %>% str_split(',') %>% unlist) %>%
 ## Documents: passport, OMS, SNILS
 ```{r}
 
-a <- get_one_var_hist(data=data, var='sn_status.factor', out_dir='plots',
+a <- get_one_var_hist(data=data, var='sn_status.factor.bool', out_dir='plots',
                       xtitle='Наличие СНИЛСа', pall_values=wes_palettes$Rushmore1,
                       height = 4, width = 9)
-b <- get_one_var_hist(data=data, var='id_status.factor', out_dir='plots',
+b <- get_one_var_hist(data=data, var='id_status.factor.bool', out_dir='plots',
                       xtitle='Наличие паспорта', pall_values=wes_palettes$Rushmore1,
                       height = 4, width = 9)
-c <- get_one_var_hist(data=data, var='oms_status.factor', out_dir='plots',
+c <- get_one_var_hist(data=data, var='oms_status.factor.bool', out_dir='plots',
                       xtitle='Наличие ОМС', pall_values=wes_palettes$Rushmore1,
                       height = 4, width = 9)
 
 abc_stacked <- ggpubr::ggarrange(a, b, c, nrow = 3, common.legend = T)
 ggsave(abc_stacked, filename = 'plots/sn_id_oms_stacked.png', height = 10, width = 11)
 
-```
-
-### Homeless
-```{r fig.width=6, fig.height=6, warning = F, message =F}
-data %>%
-  dplyr::select(record_id, Homeless, starts_with('ds_')) %>%
-  dplyr::select(-ends_with('.factor')) %>%
-  as.data.table %>%
-  melt.data.table(id.vars = c('record_id', 'Homeless')) %>%
-  dplyr::mutate(value = as.factor(case_when(value == 1 ~ 'A00-B99',
-                                            value == 2 ~ 'C00-D48',
-                                            value == 3 ~ 'D50-D89',
-                                            value == 4 ~ 'E00-E90',
-                                            value == 5 ~ 'F00-F99',
-                                            value == 6 ~ 'G00-G99',
-                                            value == 7 ~ 'H00-H59',
-                                            value == 8 ~ 'H60-H95',
-                                            value == 9 ~ 'I00-I99',
-                                            value == 10 ~ 'J00-J99',
-                                            value == 11 ~ 'K00-K93',
-                                            value == 12 ~ 'L00-L99',
-                                            value == 13 ~ 'M00-M99',
-                                            value == 14 ~ 'N00-N99',
-                                            value == 15 ~ 'O00-O99',
-                                            value == 16 ~ 'Q00-Q99',
-                                            value == 17 ~ 'S00-T98',
-                                            value == 18 ~ 'V01-Y98',
-                                            value == 19 ~ 'Z00-Z99') ) ) %>%
-  dplyr::group_by(Homeless) %>%
-  dplyr::summarise(icd10 = names(table(value)),
-                   Count = table(value)
-                   ) %>%
-  dplyr::mutate(Homeless = factor(Homeless,
-                                  levels = c('уличный', 'условно уличный',
-                                             'домашний', 'Нет данных'))) %>%
-  # Plot
-  ggplot(aes(fct_reorder(icd10, Count,.desc = T), Count)) +
-  facet_grid(rows = vars(Homeless)) +
-  geom_bar(stat = 'identity', fill = wes_palettes$Rushmore1[3]) + 
-  theme_bw() +
-  labs(x = 'ICD-10', y = 'Observations') + 
-  theme(axis.title = element_text(face = 'bold', size = 14),
-        legend.title = element_text(face = 'bold', size = 14),
-        axis.text = element_text(size = 12),
-        axis.text.x = element_text(angle = 45, vjust = 0.6),
-        legend.text = element_text(size = 12))
-  
-
-```
-
-# Shiny
-## Plot quant vs quant
-```{r fig.width=10, fig.height=7}
-
-plot_quant_vs_quant <- function(df, var1, var2, cor.method = 'pearson', dropNA = F){
-  # Specify main vars:
-  colors.vars <- wes_palettes$Zissou1[c(1,5)]
-  # Rename 
-  df %<>%
-    dplyr::rename('var1' = !!var1, 'var2' = !!var2) %>%
-    { `if`(dropNA, na.omit(.), .)}
-  
-  
-  # Basic stats
-  ggStats <-
-    df %>%
-      dplyr::select(var1, var2) %>%
-      # setNames(c(var1, var2)) %>%
-      summary %>%
-      tableGrob()
-  
-  # Plot distributions
-  ggBox1 <- 
-    df %>%  
-    ggplot(aes(var1)) +
-            geom_boxplot(fill = colors.vars[1])
-  ggBox2 <- 
-    df %>%  
-    ggplot(aes(var2)) +
-            geom_boxplot(fill = colors.vars[2])
-  
-  
-  # Scatter plot
-  ggScatter <-
-    df %>%
-      # Plot
-      ggplot(aes(var1, var2)) +
-          geom_point() +
-          geom_smooth(method = 'lm') +
-          stat_cor(method = cor.method, label.y.npc="top", label.x.npc = "left") +
-          labs(caption = paste0('var1: ', var1,'\n',
-                                  'var2: ', var2))
-  
-  return(grid.arrange(ggBox1, ggStats, ggBox2, ggScatter, nrow = 2, ncol = 2))
-}
-
-
-var1 = 'age.actual'
-var2 = 'ch_ds.number'
-data_done %>%
-  plot_quant_vs_quant(var1 , var2, cor.method = 'spearman', dropNA = T)
-```
-
-## Plot factor vs factor
-```{r fig.width=6, fig.height=6}
-plot_factor_vs_factor <- function(df.raw, var1, var2, dropNA = F, original.names = T){
-  # Specify main vars:
-  colors.vars <- wes_palettes$Zissou1[c(1,5)]
-  # Rename 
-  df.raw %<>%
-    dplyr::rename('var1' = !!var1, 'var2' = !!var2) %>%
-    { `if`(dropNA, na.omit(.), .)}
-  # Encode if needed
-  if(!original.names){
-    df <- df.raw %>% dplyr::mutate_all(encode_ordinal)
-  }else {
-    df <- df.raw
-  }
-    
-  # Basic stats
-  ggStats <-
-    df %>%
-      dplyr::select(var1, var2) %>%
-      # Plot
-      ggplot() +
-        geom_mosaic(aes(x = product(var1, var2)), fill = colors.vars[1]) +
-        geom_mosaic_text(aes(x = product(var1, var2), label = after_stat(.wt)), as.label=TRUE) +
-        {if(!original.names) labs(caption = paste0('var1: ', var1,': \n', 
-                      paste(paste0(sort(unique(encode_ordinal(df.raw$var1))), ' - ', sort(unique(df.raw$var1))), 
-                            collapse = '\n'),
-                      '\n\n',
-                      'var2: ', var2,': \n',
-                      paste(paste0(sort(unique(encode_ordinal(df.raw$var2))), ' - ', sort(unique(df.raw$var2))),
-                            collapse = '\n')))
-          } +
-        {if(original.names) labs(x = var2, y = var1)} +
-        theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .5),
-              plot.caption = element_text(size = 10))
-    
-  grid.arrange(ggStats)
-}
-
-var1 = 'nicotin.factor'
-var2 =  'alcogolic.factor'
-plot_factor_vs_factor(data_done, var1, var2, 
-                      dropNA = T, 
-                      original.names = T) #TODO convert all to NA or all to No anwser
-```
-
-## Plot quant vs factor
-```{r fig.width=10, fig.height=5}
-extract_all_comparisons <- function(.tbl) {
-  .tbl %>%
-    dplyr::select(.data$group1, .data$group2) %>%
-    purrr::transpose() %>%
-    purrr::modify_depth(1, unlist)
-}
-
-plot_quant_vs_factor <- function(df.raw, var1, var2, 
-                                 dropNA = F, original.names = T,
-                                 compare_mean_method = 't.test'){
-  # Specify main vars:
-  colors.vars <- wes_palettes$Zissou1[c(1,5)]
-  # Figure out what var is factor
-  if(is.factor(df.raw[[var1]]) | is.character(df.raw[[var1]])) {
-    var.factor = var1
-    var.quant = var2
-  }else{
-    var.quant = var1
-    var.factor = var2
-  }
-  # Rename 
-  df.raw %<>%
-    dplyr::rename('var.quant' = !!var.quant, 'var.factor' = !!var.factor) %>%
-    { `if`(dropNA, na.omit(.), .)}
-  
-  # Encode if needed
-  if(!original.names){
-    df <- df.raw %>% dplyr::mutate(var.factor = encode_ordinal(var.factor))
-  }else {
-    df <- df.raw
-  }
-  
-  # Basic stats
-  ggStats <-
-    df %>%
-      dplyr::select(var.quant, var.factor) %>%
-      {`if`(original.names, setNames(., c(var.quant, var.factor)), .)} %>%
-      summary %>%
-      tableGrob()
-  
-  # Plot box
-  # Calculate combinations of factors
-  combinations = lapply(combn(na.omit(unique(df$var.factor)), 2, simplify = F), 
-                        as.character)
-  
-  # ggBox <-
-    df %>%  
-    ggplot(aes(y= var.quant, x = var.factor, fill = var.factor)) +
-            geom_boxplot() +
-            geom_jitter(alpha = 0.2, width = 0.05) +
-            stat_compare_means(aes(x = var.factor, y = var.quant, label = ..p.adj..),
-                               method = compare_mean_method, 
-                               comparisons = combinations,
-                               na.rm = T) +
-            # Appearance
-            theme(axis.ticks.x = element_blank(),
-                    axis.text.x = element_blank()) +
-            {if(!original.names) labs(caption = paste0(
-              'var.quant: ', var.quant, '\n\n',
-              'var.factor: ', var.factor, '\n', # Add info if encoded
-              paste(paste0(sort(unique(encode_ordinal(df.raw$var.factor))), ' - ',
-                           sort(unique(df.raw$var.factor))), collapse = '\n')
-              ))
-            } +
-            {if(original.names) labs(x = var.factor,
-                                     y = var.quant,
-                                     fill = var.factor)} # Add original names
-  
-  # return(grid.arrange(ggStats, ggBox, ncol = 2))
-}
-
-var1 = 'age.actual'
-var2 = 'alcogolic.factor'
-plot_quant_vs_factor(data_done, 
-                     var1, var2, 
-                     dropNA = T, 
-                     original.names = F,
-                     compare_mean_method = 't.test')
 ```
 
 # Social factors
@@ -1469,85 +1350,4 @@ get_one_var_hist(data,
                  var='family.factor', out_dir='plots',
                  xtitle='Семейное положение', pall_values=c(wes_palettes$Rushmore1),
                  height = 6, width = 8, ratio=0.8)
-```
-
-
-## Shiny
-```{r}
-ui <-  fluidPage(
-  
-  titlePanel(h1("Charity Hospital Project")),
-  
-  sidebarLayout(
-      sidebarPanel(h1("Choosing variables", align = 'center'),
-                    
-                  selectInput("var1", label = h3("Select first variable"), 
-                              choices = selected_vars, 
-                              selected = 1),
-                  
-                  selectInput("var2", label = h3("Select second variable"), 
-                              choices = selected_vars, 
-                              selected = 1),
-                  
-                  selectInput("dropNA", label = h3("Drop NA or not?"), 
-                              choices = c(T, F), 
-                              selected = 1),
-                  
-                  selectInput("original.names", label = h3("Original names?"),
-                              choices = c(T, F),
-                              selected = 1),
-                  
-                  selectInput("means.method", label = h3("Which test use to compare means?"), 
-                              choices = c('wilcox.test', 't.test'), 
-                              selected = 1),
-                  
-                  selectInput("cor.method", label = h3("Which correlation test to use?"), 
-                              choices = c('spearman', 'pearson'), 
-                              selected = 1)
-                  ),
-      
-      mainPanel(h1("Plots", align = 'center'),
-                plotOutput(outputId = "plot"))
-  )
-  
-)
-
-server <- function(input, output) {
-  
-  output$plot <- renderPlot({
-    
-    vars = c(input$var1, input$var2)
-    
-    if(is.factor(data_done[[vars[1]]]) & is.factor(data_done[[vars[2]]])){
-      # if both are factors
-      return(plot_factor_vs_factor(data_done, vars[1], vars[2], 
-                                   dropNA = input$dropNA,
-                                   original.names = T
-                                   ))
-    }
-
-    if((is.numeric(data_done[[vars[1]]]) & is.factor(data_done[[vars[2]]])) | 
-       is.factor(data_done[[vars[2]]]) & is.factor(data_done[[vars[1]]])){
-       # if factor vs quant
-       return(plot_quant_vs_factor(data_done, vars[1], vars[2],
-                         dropNA = input$dropNA,  
-                         original.names = T,
-                         compare_mean_method = input$means.method))
-    }
-    
-    if(is.numeric(data_done[[vars[1]]]) & is.numeric(data_done[[vars[2]]])){
-      # if both are factors
-      return(plot_quant_vs_quant(data_done, vars[1], vars[2],
-                                 dropNA = input$dropNA,
-                                 cor.method = input$cor.method))
-    }
-    
-    })
-    
-    
-  
-}
-
-# Run the app ----
-shinyApp(ui = ui, server = server)
 ```
