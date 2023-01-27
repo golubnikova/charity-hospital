@@ -59,30 +59,42 @@ Tasks:
 #### Social diseases
 
 - HIV
-<img src="plots/HIV_test.png" width="500" height="300" />
+<img src="plots/HIV_test2.png" width="500" height="300" />
 
 
-- Hepatit B
-<img src="plots/hb_test.png" width="500" height="300" />
+- Hepatit B, C, lues
+
+<img src="plots/hb_hc_lue.png" width="500" height="300" />
 
 
-- Hepatit C
-<img src="plots/hc_test.png" width="500" height="300" />
+### The categories of homeless people by place of sleeping 
+ 
+
+Here you can see statistic distribution of the homeless people among place of sleeping at their first and last visit:         
+<img src="plots/Homeless_category.dt.png" width="500" height="300" />  
 
 
-- Lues
+We analyzed how changed the conditions of living of the Charity Hospital patients.      
+
+<img src="plots/Homeless.status.change.png" width="500" height="300" />
+
+*Conclusion:*  The number of patients whose place of living has improved is only 43 (2.6%).   
+At the same time, the number of patients whose place of living became worse was 55 (3.4%).   
+
+**Categories of homeless people**    
+
+For the further analysis we grouped patients by places of living in the following categories:   
+- Chronic Homelessness (street) 
+- Hidden Homelessness
+- Domestic Homelessness
 
 
-<img src="plots/lues_test.png" width="500" height="300" />
-
+<img src="plots/Homeless_category.png" width="500" height="300" />    
 
 ### The influence of the place of sleeping on the presence of any disease
 
 *Here we analyzed the distribution of DS-ICD №10 disease categories, socially significant infections (hepatit B, C, syphilis, HIV), alcohol addictions, tuberculosis among different categories of homeless people. In addition we calculated multiple Chi-square test for some pairs with statistically relevant number of observations (not less than 30).*         
 
-**Categories of homeless people**   
-
-<img src="plots/Homeless_category.png" width="500" height="300" />
 
 
 **Categories of homeless people and DS-ICD №10 disease categories**  
@@ -109,7 +121,7 @@ Conclusion: Alcohol addiction is associated with a type of homelessness (p-value
 
 *Adjusted p-value = 0.0125*    
 
-<img src="plots/Homeless_vs_Addictions.png" width="500" height="300" />
+<img src="plots/Homeless_vs_Addictions2.png" width="500" height="300" />
 
 
 
