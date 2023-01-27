@@ -814,6 +814,8 @@ chisq.lst <-
 names(chisq.lst) <- ds.other$ds %>% table %>% names
 
 chisq.lst
+
+                                   
 ```
 
 ### vs HIV
@@ -1200,7 +1202,7 @@ data.frame(ICD = data_done$DS %>% str_split(',') %>% unlist) %>%
             geom_bar(fill = wes_palette("Royal2")[5]) +
             geom_text(stat='count', aes(label=..count..), hjust = -0.2) +
             xlab('Заболевания по МКБ-10') +
-            ylab('Количество пациентов с данным заболеванием (по посещениям)') +
+            ylab('Количество пациентов с данным заболеванием (по визитам)') +
             theme(legend.position="left") +
             # aes(stringr::str_wrap(ICD, 15)) + 
   xlab(NULL) +
@@ -1208,71 +1210,194 @@ data.frame(ICD = data_done$DS %>% str_split(',') %>% unlist) %>%
             coord_flip()
 ```
 
-## Documents: passport, OMS, SNILS
-```{r}
 
-a <- get_one_var_hist(data=data, var='sn_status.factor', out_dir='plots',
-                      xtitle='Наличие СНИЛСа', pall_values=wes_palettes$Rushmore1,
-                      height = 4, width = 9)
-b <- get_one_var_hist(data=data, var='id_status.factor', out_dir='plots',
-                      xtitle='Наличие паспорта', pall_values=wes_palettes$Rushmore1,
-                      height = 4, width = 9)
-c <- get_one_var_hist(data=data, var='oms_status.factor', out_dir='plots',
-                      xtitle='Наличие ОМС', pall_values=wes_palettes$Rushmore1,
-                      height = 4, width = 9)
-
-abc_stacked <- ggpubr::ggarrange(a, b, c, nrow = 3, common.legend = T)
-ggsave(abc_stacked, filename = 'plots/sn_id_oms_stacked.png', height = 10, width = 11)
-
-```
 
 ### Homeless
 ```{r fig.width=6, fig.height=6, warning = F, message =F}
+# По кодам МКБ-10
+
 data %>%
   dplyr::select(record_id, Homeless, starts_with('ds_')) %>%
   dplyr::select(-ends_with('.factor')) %>%
   as.data.table %>%
   melt.data.table(id.vars = c('record_id', 'Homeless')) %>%
-  dplyr::mutate(value = as.factor(case_when(value == 1 ~ 'A00-B99',
-                                            value == 2 ~ 'C00-D48',
-                                            value == 3 ~ 'D50-D89',
-                                            value == 4 ~ 'E00-E90',
-                                            value == 5 ~ 'F00-F99',
-                                            value == 6 ~ 'G00-G99',
-                                            value == 7 ~ 'H00-H59',
-                                            value == 8 ~ 'H60-H95',
-                                            value == 9 ~ 'I00-I99',
-                                            value == 10 ~ 'J00-J99',
-                                            value == 11 ~ 'K00-K93',
-                                            value == 12 ~ 'L00-L99',
-                                            value == 13 ~ 'M00-M99',
-                                            value == 14 ~ 'N00-N99',
-                                            value == 15 ~ 'O00-O99',
-                                            value == 16 ~ 'Q00-Q99',
-                                            value == 17 ~ 'S00-T98',
-                                            value == 18 ~ 'V01-Y98',
-                                            value == 19 ~ 'Z00-Z99') ) ) %>%
   dplyr::group_by(Homeless) %>%
   dplyr::summarise(icd10 = names(table(value)),
                    Count = table(value)
                    ) %>%
-  dplyr::mutate(Homeless = factor(Homeless,
-                                  levels = c('уличный', 'условно уличный',
-                                             'домашний', 'Нет данных'))) %>%
   # Plot
   ggplot(aes(fct_reorder(icd10, Count,.desc = T), Count)) +
   facet_grid(rows = vars(Homeless)) +
   geom_bar(stat = 'identity', fill = wes_palettes$Rushmore1[3]) + 
   theme_bw() +
-  labs(x = 'ICD-10', y = 'Observations') + 
+  labs(x = 'Код МКБ-10', y = 'Количество визитов') + 
   theme(axis.title = element_text(face = 'bold', size = 14),
         legend.title = element_text(face = 'bold', size = 14),
         axis.text = element_text(size = 12),
         axis.text.x = element_text(angle = 45, vjust = 0.6),
         legend.text = element_text(size = 12))
-  
 
 ```
+
+## Where.category
+
+### Common.stat
+```{r}
+data %>%
+  dplyr::filter(!is.na(redcap_repeat_instrument)) %>%
+  dplyr::select(record_id, redcap_repeat_instrument, where.category) %>%
+  dplyr::summarise(Count = table(where.category, exclude = NULL),
+                   where.category = names(table(where.category, exclude = NULL))) %>%
+  dplyr::mutate(where.category = case_when(is.na(where.category) ~ 'нет данных',
+                                     T ~ where.category)) %>%
+  # Plot 
+  ggplot(aes(Count, fct_reorder(where.category, Count) , fill = where.category)) +
+  geom_bar(stat = 'identity') +
+  scale_fill_manual(values = c("приют" = wes_palettes$FantasticFox1[3], "ночной приют" = wes_palettes$Darjeeling2[2],"стоянка" = wes_palettes$Chevalier1[1], "пункт обогрева" = wes_palettes$Cavalcanti1[5], "медицинский центр" = wes_palettes$Cavalcanti1[3], "удаленная консультация" = wes_palettes$Chevalier1[2], "нет данных" = wes_palettes$Royal1[1])) +
+  theme_bw() +
+  theme(axis.title = element_text(face = 'bold', size = 14),
+        legend.title = element_text(face = 'bold', size = 14),
+        axis.text = element_text(size = 12),
+        legend.text = element_text(size = 12),
+        legend.position = 'none') +
+  labs(x  = 'Количество приемов', y = 'Места приема бездомных пациентов')
+
+```
+
+
+### Where.category
+```{r fig.width=6, fig.height=6, warning = F, message =F}
+
+geombar_abs <- data %>%
+  dplyr::select(record_id, where.category, starts_with('ds_')) %>%
+  dplyr::select(-ends_with('.factor')) %>%
+  as.data.table %>%
+  filter(!is.na(where.category)) %>%
+  melt.data.table(id.vars = c('record_id', 'where.category')) %>%
+  dplyr::group_by(where.category) %>%
+  dplyr::summarise(icd10 = names(table(value)),
+                   Count = table(value)
+                   ) %>%
+  # Plot
+  ggplot(aes(fct_reorder(icd10, Count,.desc = T), Count)) +
+  facet_grid(rows = vars(where.category)) +
+  geom_bar(stat = 'identity', fill = wes_palettes$Rushmore1[4]) +
+  theme_bw() +
+  labs(x = 'Заболевания по МКБ-10', y = 'Количество посещений в данной категории') + 
+  theme(axis.title = element_text(face = 'bold', size = 12),
+        legend.title = element_text(face = 'bold', size = 12),
+        axis.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 45, vjust = 0.6),
+        legend.text = element_text(size = 7))
+
+geombar_abs
+
+#data_done$DS <- data_done$DS %>% str_split(',') %>% unlist
+
+
+geombar_abs.DS <- data_done %>%
+  dplyr::select(record_id, where.category.mostfreq, DS) %>%
+  dplyr::select(-ends_with('.factor')) %>%
+  as.data.table %>%
+  filter(!is.na(where.category.mostfreq)) %>%
+  melt.data.table(id.vars = c('record_id', 'where.category.mostfreq')) %>%
+  dplyr::group_by(where.category.mostfreq) %>%
+  dplyr::summarise(icd10 = names(table(value)),
+                   Count = table(value)
+                   ) %>%
+  # Plot
+  ggplot(aes(fct_reorder(icd10, Count,.desc = T), Count)) +
+  facet_grid(rows = vars(where.category.mostfreq)) +
+  geom_bar(stat = 'identity', fill = wes_palettes$Rushmore1[4]) +
+  theme_bw() +
+  labs(x = 'Заболевания по МКБ-10', y = 'Количество посещений в данной категории') + 
+  theme(axis.title = element_text(face = 'bold', size = 12),
+        legend.title = element_text(face = 'bold', size = 12),
+        axis.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 45, vjust = 0.6),
+        legend.text = element_text(size = 7))
+
+geombar_abs.DS
+
+
+
+#пропорции внутри группы
+geombar_pc <- data %>%
+  dplyr::select(record_id, where.category, starts_with('ds_')) %>%
+  dplyr::select(-ends_with('.factor')) %>%
+  as.data.table %>%
+  filter(!is.na(where.category)) %>%
+  melt.data.table(id.vars = c('record_id', 'where.category')) %>%
+  dplyr::group_by(where.category) %>%
+  dplyr::summarise(icd10 = names(table(value)),
+                   Count = table(value)
+                   ) %>%
+  filter(!is.na(icd10)) %>%
+  mutate(perc = prop.table(Count)) %>%
+  # Plot
+  ggplot(aes(fct_reorder(icd10, perc,.desc = T), perc)) +
+  facet_grid(rows = vars(where.category)) +
+  geom_bar(stat = 'identity', fill = wes_palettes$Rushmore1[4]) +
+  theme_bw() +
+  labs(x = 'Заболевания по МКБ-10', y = 'Количество визитов') + 
+  theme(axis.title = element_text(face = 'bold', size = 12),
+        legend.title = element_text(face = 'bold', size = 12),
+        axis.text = element_text(size = 10),
+        axis.text.x = element_text(angle = 90, vjust = 0.8),
+        legend.text = element_text(size = 7)) +
+        scale_y_continuous(labels=scales::percent)
+
+geombar_pc
+
+
+#Тест Хи-квадрат
+ds.alco <- data.frame(ds = data_done$DS %>% str_split(',') %>% unlist,
+           alc = rep(data_done$alc, data_done$DS.N %>% replace_na(1))) %>%
+  na.omit
+
+chisq.lst <-
+  lapply(ds.alco$ds %>% table %>% names, function(interval){
+  df = ds.alco[ds.alco$ds == interval,]
+  chisq.test(df$alc)
+}) 
+
+names(chisq.lst) <- ds.alco$ds %>% table %>% names
+
+chisq.lst
+
+-----
+  
+ds.where <- data.frame(ds = data_done$DS %>% str_split(',') %>% unlist,
+           where = rep(data_done$where.category.mostfreq, data_done$DS.N %>% replace_na(1))) %>%
+  na.omit
+
+install.packages("ggstatsplot")
+library(ggstatsplot)
+
+ggbarstats(
+  data  = ds.where, 
+  x     = ds, 
+  y     = where, 
+  label = "both", 
+)
+
+
+chisq.lst <-
+  lapply(ds.where$ds %>% table %>% names, function(interval){
+  df = ds.where[ds.where$ds == interval,]
+  chisq.test(df$where)
+}) 
+
+names(chisq.lst) <- ds.where$ds %>% table %>% names
+
+chisq.lst
+
+
+
+
+
+```
+
 
 # Shiny
 ## Plot quant vs quant
