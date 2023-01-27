@@ -26,22 +26,22 @@ Tasks:
 
 ### The portrait of a homeless patient
 
-- age and gender
+#### Age and gender   
 
 <img src="plots/Age_group.png" width="500" height="300" />
 
 
-- citizenship
+#### Citizenship
 
 <img src="plots/citizen.factor_bar_plot.png" width="500" height="300" />
 
 
-- documents
+#### Documents
 
 <img src="plots/sn_id_oms_stacked.png" width="500" height="300" />
 
 
-- family status and education 
+#### Family status and education 
 
 <img src="plots/family.factor_bar_plot.png" width="500" height="300" />
 
@@ -49,28 +49,57 @@ Tasks:
 <img src="plots/education.factor_bar_plot.png" width="500" height="300" />
 
 
+### The most common diseases of the homeless people   
+
+#### DS-ICD №10 disease categories
+
+<img src="plots/ICD10.full.png" width="500" height="300" />
+
+
+#### Social diseases
+
+- HIV
+<img src="plots/HIV_test.png" width="500" height="300" />
+
+
+- Hepatit B
+<img src="plots/hb_test.png" width="500" height="300" />
+
+
+- Hepatit C
+<img src="plots/hc_test.png" width="500" height="300" />
+
+
+- Lues
+
+
+<img src="plots/lues_test.png" width="500" height="300" />
+
+
 ### The influence of the place of sleeping on the presence of any disease
 
-*Here we analyzed the distribution of DS-ICD №10 illness categories, socially significant infections (hepatit B, C, syphilis, HIV), alcohol addictions, tuberculosis among different categories of homeless people. In addition we calculated multiple Chi-square test for some pairs with statistically relevant number of observations (not less than 30).*         
+*Here we analyzed the distribution of DS-ICD №10 disease categories, socially significant infections (hepatit B, C, syphilis, HIV), alcohol addictions, tuberculosis among different categories of homeless people. In addition we calculated multiple Chi-square test for some pairs with statistically relevant number of observations (not less than 30).*         
 
 **Categories of homeless people**   
 
 <img src="plots/Homeless_category.png" width="500" height="300" />
 
 
-**Categories of homeless people with visit frequencies**      
-
-
-**Categories of homeless people and DS-ICD №10 illness categories**  
+**Categories of homeless people and DS-ICD №10 disease categories**  
 
 <img src="plots/ICD_vs_Homeless.png" width="500" height="300" />
 
+*Multiple Chi-square test*   
+Hypothesis: Is the distribution of ICD-10 among different categories of homelessness non-random.    
+*Adjusted p-value =  0.003*    
+
+Revealed dependency:
+Disease of the circulatory system, I00-I99 (p-value = 0.000284)    
 
 
 **Categories of homeless people and tuberculosis**    
 
 <img src="plots/Tub_vs_Homeless.png" width="500" height="300" />
-
 
 
 **Categories of homeless people and addictions**     
@@ -84,12 +113,20 @@ Conclusion: Alcohol addiction is associated with a type of homelessness (p-value
 
 
 
+###  The categories of homeless patients by places of assistance and test of independence
+*Here we grouped places of assistance according with international categories: parking, shelter, night shelter, remote consultation, heating point, medical center.*    
+
+<img src="plots/Where.category.png" width="500" height="300" />
 
 
 
+**Places of assistance and DS-ICD №10 disease categories**   
+
+<img src="plots/ICD_vs_Where.png" width="500" height="300" />
+
+*Conclusion:*  most visits of patients were at the parking places, so neither factor showed the significance different between different places of assistance.   
 
 
-### Clusterization of homeless patients by places of assistance
 
 
 
