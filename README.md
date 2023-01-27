@@ -28,38 +28,49 @@ Tasks:
 
 - age and gender
 
-![plot](Age_group.png =250x250)
+<img src="plots/Age_group.png" width="500" height="300" />
+
 
 - citizenship
 
-![plot](citizen.factor_bar_plot.png =250x250)
+<img src="plots/citizen.factor_bar_plot.png" width="500" height="300" />
+
 
 - documents
 
-![plot](sn_id_oms_stacked.png =250x250)
+<img src="plots/sn_id_oms_stacked.png" width="500" height="300" />
 
 
 - family status and education 
 
-![plot](family.factor_bar_plot.png =250x250)
-![plot](education.factor_bar_plot.png =250x250)
+<img src="plots/family.factor_bar_plot.png" width="500" height="300" />
+
+
+<img src="plots/education.factor_bar_plot.png" width="500" height="300" />
+
 
 ### The influence of the place of sleeping on the presence of any disease
 
 *Here we analyzed the distribution of DS-ICD №10 illness categories, socially significant infections (hepatit B, C, syphilis, HIV), alcohol addictions, tuberculosis among different categories of homeless people. In addition we calculated multiple Chi-square test for some pairs with statistically relevant number of observations (not less than 30).*         
 
 **Categories of homeless people**   
-![plot](plots/Homeless_category.png =250x250)
+
+<img src="plots/Homeless_category.png" width="500" height="300" />
+
 
 **Categories of homeless people with visit frequencies**      
 
 
-**Categories of homeless people and DS-ICD №10 illness categories**     
-![plot](plots/ICD_vs_Homeless.png =250x250)
+**Categories of homeless people and DS-ICD №10 illness categories**  
+
+<img src="plots/ICD_vs_Homeless.png" width="500" height="300" />
+
 
 
 **Categories of homeless people and tuberculosis**    
-![plot](plots/lotsTub_vs_Homeless.png =250x250)
+
+<img src="plots/Tub_vs_Homeless.png" width="500" height="300" />
+
 
 
 **Categories of homeless people and addictions**     
@@ -69,7 +80,8 @@ Conclusion: Alcohol addiction is associated with a type of homelessness (p-value
 
 *Adjusted p-value = 0.0125*    
 
-![plot](Homeless_vs_Addictions.png =250x250)    
+<img src="plots/Homeless_vs_Addictions.png" width="500" height="300" />
+
 
 
 
