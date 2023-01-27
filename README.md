@@ -2,7 +2,6 @@
 
 Authors:
 - Eugene Potapenko
-- Ekaterina Fokina
 - Mariia Firuleva
 - Liliya Golubnikova
 
@@ -26,6 +25,9 @@ Tasks:
 ## Results
 
 ### The portrait of a homeless patient
+
+[]()
+
 - age
 - gender
 - citizenship
@@ -34,6 +36,15 @@ Tasks:
 
 ### The influence of the place of sleeping on the presence of any disease
 
+*Here we analyzed the distribution of DS-ICD №10 illness categories, socially significant infections (hepatit B, C, syphilis, HIV), alcohol addictions, tuberculosis among different categories of homeless people. In addition we calculated multiple Chi-square test for some pairs with statistically relevant number of observations (not less than 30).*         
+
+**Categories of homeless people**   
+[plots/Homeless_category.png](plots/Homeless_category.png)
+
+**Categories of homeless people with visit frequencies**      
+
+
+**
 
 ### Clusterization of homeless patients by places of assistance
 
