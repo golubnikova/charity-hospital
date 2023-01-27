@@ -1,6 +1,7 @@
 # Analysis of the "Charity hospital" database
 
 Authors:
+- Ekaterina Fokina
 - Eugene Potapenko
 - Mariia Firuleva
 - Liliya Golubnikova
