@@ -44,10 +44,10 @@ Tasks:
 
 #### Family status and education 
 
-<img src="plots/family.factor_bar_plot2.png" width="250" height="300" />
+<img src="plots/family.factor_bar_plot2.png" width="300" height="350" />
 
 
-<img src="plots/education.factor_bar_plot2.png" width="250" height="300" />
+<img src="plots/education.factor_bar_plot2.png" width="300" height="350" />
 
 
 ### The most common diseases of the homeless people   
