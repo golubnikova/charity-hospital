@@ -39,15 +39,15 @@ Tasks:
 
 #### Documents
 
-<img src="plots/sn_id_oms_stacked.png" width="500" height="300" />
+<img src="plots/sn_id_oms_stacked.png" width="500" height="700" />
 
 
 #### Family status and education 
 
-<img src="plots/family.factor_bar_plot.png" width="500" height="300" />
+<img src="plots/family.factor_bar_plot2.png" width="500" height="300" />
 
 
-<img src="plots/education.factor_bar_plot.png" width="500" height="300" />
+<img src="plots/education.factor_bar_plot2.png" width="500" height="300" />
 
 
 ### The most common diseases of the homeless people   
@@ -135,7 +135,7 @@ Conclusion: Alcohol addiction is associated with a type of homelessness (p-value
 
 **Places of assistance and DS-ICD №10 disease categories**   
 
-<img src="plots/ICD_vs_Where.png" width="500" height="300" />
+<img src="plots/ICD_vs_Where2.png" width="500" height="300" />
 
 *Conclusion:*  most visits of patients were at the parking places, so neither factor showed the significance different between different places of assistance.   
 
