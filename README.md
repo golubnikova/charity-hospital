@@ -39,7 +39,7 @@ Tasks:
 
 #### Documents
 
-<img src="plots/documents2.png" width="500" height="300" />
+<img src="plots/documents2.png" width="500" height="500" />
 
 
 #### Family status and education 
