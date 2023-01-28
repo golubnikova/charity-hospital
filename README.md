@@ -77,7 +77,7 @@ Here you can see statistic distribution of the homeless people among place of sl
 
 We analyzed how changed the conditions of living of the Charity Hospital patients.      
 
-<img src="plots/Homeless.status.change.png" width="500" height="300" />
+<img src="plots/Homeless.status.change.png" width="600" height="400" />
 
 *Conclusion:*  The number of patients whose place of living has improved is only 43 (2.6%).   
 At the same time, the number of patients whose place of living became worse was 55 (3.4%).   
@@ -86,7 +86,7 @@ At the same time, the number of patients whose place of living became worse was 
 
 For the further analysis we grouped patients by places of living in the following categories:   
 - Chronic Homelessness (street) 
-- Hidden Homelessness
+- Hidden Homelessness (conditional)
 - Domestic Homelessness
 
 
@@ -140,7 +140,21 @@ Conclusion: Alcohol addiction is associated with a type of homelessness (p-value
 *Conclusion:*  most visits of patients were at the parking places, so neither factor showed the significance different between different places of assistance.   
 
 
+## Summary
 
+1. Mostly men apply for medical assistance to the Hospital. The number of male patients is 3.5 times higher than female patients. The predominant age group is 45-59 years old, the category of homelessness is hidden. The average number of visits per year is 2.4.
+
+2. The most common reason for seeking medical attention is injury (S00-T98), disease of the musculoskeletal system and connective tissue (M0-M99), disease of the skin and subcutaneous tissue (L55-L59), disease of the circulatory system (I00-I99), diseases of the digestive system (K00-K93), respiratory diseases (J00-J99).
+
+3. Alcohol addiction is associated with a type of homelessness. A relationship was also found between alcohol dependence and diseases of the circulatory system (I00-I99), diseases of the skin and subcutaneous tissue (L55-L59).
+
+4. The relationship between the disease of the circulatory system (I00-I99) and the categories of homelessness was revealed.
+
+5. It was found that people who were in prison are more likely to suffer from alcohol addiction.
+
+6. It is also worth noting the high prevalence of diabetes mellitus, HIV among the homeless compared to the population of the Russian Federation.
+
+7. Living conditions (category of homelessness) worsened in a larger percentage of participants during the year.
 
 
 ## References
