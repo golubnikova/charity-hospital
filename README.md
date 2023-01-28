@@ -7,7 +7,7 @@ Authors:
 - Liliya Golubnikova
 
 ## Introduction
-The [Charitable Hospital](https://charityhospital.ru/) is a non-profit organization that provides comprehensive medical and social assistance to the homeless, migrants, refugees, and people without documents and citizenship since 2018.  
+The [Charity Hospital](https://charityhospital.ru/) is a non-profit organization that provides comprehensive medical and social assistance to the homeless, migrants, refugees, and people without documents and citizenship since 2018.  
 
 Data was recorded and managed with the REDCap system, a secure, web-based application designed to support data capture for research studies. The REDCap system is collecting data on every homeless patient who seeks medical help. This is a unique practice for Russia and the analysis of the collected data (1633 unique patients) will help to improve service for homeless people in protecting their health.
 
