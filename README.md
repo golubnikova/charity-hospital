@@ -39,15 +39,15 @@ Tasks:
 
 #### Documents
 
-<img src="plots/sn_id_oms_stacked.png" width="500" height="700" />
+<img src="plots/documents2.png" width="400" height="600" />
 
 
 #### Family status and education 
 
-<img src="plots/family.factor_bar_plot2.png" width="500" height="300" />
+<img src="plots/family.factor_bar_plot2.png" width="250" height="300" />
 
 
-<img src="plots/education.factor_bar_plot2.png" width="500" height="300" />
+<img src="plots/education.factor_bar_plot2.png" width="250" height="300" />
 
 
 ### The most common diseases of the homeless people   
