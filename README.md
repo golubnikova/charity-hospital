@@ -77,7 +77,7 @@ Here you can see statistic distribution of the homeless people among place of sl
 
 We analyzed how changed the conditions of living of the Charity Hospital patients.      
 
-<img src="plots/Homeless.status.change.png" width="600" height="400" />
+<img src="plots/Homeless.status.change.png" width="500" height="350" />
 
 *Conclusion:*  The number of patients whose place of living has improved is only 43 (2.6%).   
 At the same time, the number of patients whose place of living became worse was 55 (3.4%).   
